@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>业务 · 流程图管理</title>
+<link rel="stylesheet" href="/archify-manage/assets/style.css">
+</head>
+<body>
+<header class="top">
+  <div>
+    <p class="crumbs"><a href="/archify-manage/">项目首页</a> / <span id="bizName">…</span></p>
+    <h1 id="title">业务</h1>
+    <p class="sub" id="intro"></p>
+  </div>
+  <p id="status" class="status" data-kind="info">正在读取业务…</p>
+</header>
+<p id="errorBox" class="error" hidden></p>
+<section id="guideBox" class="guide" hidden></section>
+<section id="docs" class="panel" hidden>
+  <h2>业务文档</h2>
+  <ul id="docList" class="doc-list"></ul>
+</section>
+<main id="root" class="cards"></main>
+<script type="module" src="/archify-manage/assets/business.js"></script>
+</body>
+</html>

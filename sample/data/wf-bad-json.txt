@@ -1,0 +1,4 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": { "title": "坏文件演示", "subtitle": "这条 JSON 在这里断掉

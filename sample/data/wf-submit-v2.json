@@ -1,0 +1,95 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Campus Event Registration",
+    "subtitle": "A small registrar flow: submit, check eligibility, record, confirm",
+    "locale": "en",
+    "animation": "none",
+    "visual_preset": "signal-flow",
+    "quality_profile": "showcase",
+    "legend": {
+      "mode": "auto",
+      "entries": {
+        "frontend": { "label": "Portal surface" },
+        "backend": { "label": "Registration logic" },
+        "messagebus": { "label": "Notification" },
+        "security": { "label": "Refusal outcome" },
+        "database": { "label": "Stored record" }
+      }
+    },
+    "views": [
+      {
+        "id": "happy-path",
+        "label": "Submit to confirmation",
+        "focus": ["submit_registration", "check_eligibility", "create_record", "send_confirmation"],
+        "note": "Follow an eligible student from the form to the confirmation message."
+      },
+      {
+        "id": "refusal",
+        "label": "When the entry is refused",
+        "focus": ["check_eligibility", "reject_registration"],
+        "note": "See where an application stops and what the student is told."
+      },
+      {
+        "id": "waitlist",
+        "label": "When the event is full",
+        "focus": ["create_record", "waitlist_entry", "send_confirmation"],
+        "note": "See what still gets written when no seat is left."
+      }
+    ]
+  },
+  "lanes": [
+    { "id": "portal", "label": "Student Portal" },
+    { "id": "service", "label": "Registration Service" },
+    { "id": "outcomes", "label": "Alternate Outcomes", "variant": "exception" }
+  ],
+  "phases": [
+    { "id": "intake", "label": "Intake", "fromCol": 0, "toCol": 0 },
+    { "id": "validate", "label": "Validate + record", "fromCol": 1, "toCol": 2, "variant": "emphasis" },
+    { "id": "notify", "label": "Notify", "fromCol": 3, "toCol": 3, "variant": "dashed" }
+  ],
+  "mainPath": ["submit_registration", "check_eligibility", "create_record", "send_confirmation"],
+  "nodes": [
+    { "id": "submit_registration", "lane": "portal", "col": 0, "type": "frontend", "label": "Registration Form", "sublabel": "student submits an entry", "width": 132 },
+    { "id": "check_eligibility", "lane": "service", "col": 1, "type": "backend", "label": "Check Eligibility", "sublabel": "account + duplicates", "width": 132 },
+    { "id": "create_record", "lane": "service", "col": 2, "type": "backend", "label": "Create Registration", "sublabel": "seat or waitlist", "tag": "one transaction", "width": 132 },
+    { "id": "send_confirmation", "lane": "service", "col": 3, "type": "messagebus", "label": "Send Confirmation", "sublabel": "message recorded", "width": 132 },
+    { "id": "reject_registration", "lane": "outcomes", "col": 1, "type": "security", "label": "Reject Entry", "sublabel": "reason returned", "width": 132 },
+    { "id": "waitlist_entry", "lane": "outcomes", "col": 2, "type": "database", "label": "Add to Waitlist", "sublabel": "no seat taken", "width": 132 }
+  ],
+  "edges": [
+    { "id": "submit-entry", "from": "submit_registration", "to": "check_eligibility", "label": "submit", "variant": "emphasis" },
+    { "id": "eligible", "from": "check_eligibility", "to": "create_record", "label": "eligible", "variant": "emphasis" },
+    { "id": "not-eligible", "from": "check_eligibility", "to": "reject_registration", "label": "not eligible", "variant": "security", "role": "error" },
+    { "id": "capacity-full", "from": "create_record", "to": "waitlist_entry", "label": "capacity full", "variant": "dashed", "role": "branch" },
+    { "id": "waitlist-notify", "from": "waitlist_entry", "to": "send_confirmation", "label": "place recorded", "variant": "dashed", "role": "branch" },
+    { "id": "seat-confirmed", "from": "create_record", "to": "send_confirmation", "label": "seat confirmed", "variant": "emphasis" }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Order Matters",
+      "items": [
+        "Eligibility is checked before any seat is reserved",
+        "A duplicate can never reach the record step"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Failure Is Part of the Flow",
+      "items": [
+        "Rejection and waitlisting are ordinary, written outcomes",
+        "Each exit names what the student sees"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "One Transaction",
+      "items": [
+        "The seat count and the registration row change together",
+        "A failed write rolls back to the previous state"
+      ]
+    }
+  ]
+}

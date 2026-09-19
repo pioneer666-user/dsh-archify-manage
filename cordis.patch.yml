@@ -1,0 +1,8 @@
+# 本组合包贡献的插件行。repoRoot 默认未配置（空串）：插件正常加载，
+# 页面给出配置指引；用户在自己 profile 的 cordis.patch.yml 里按 id 覆盖本行
+# （需重述该行全部键），保存后重启 DSH 生效。
+- insert:
+    - id: specdev-archify-manage
+      name: '@specdev/dsh-archify-manage'
+      config:
+        repoRoot: ''

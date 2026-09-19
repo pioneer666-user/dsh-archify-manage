@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>图阅读 · 流程图管理</title>
+<link rel="stylesheet" href="/archify-manage/assets/style.css">
+<!-- 把渲染器用到的 node: 内置模块映射到随包替身（vendor/archify-renderer/stubs/）。
+     编译路径不该真调用它们；一旦被调用，替身抛错暴露（做法承自 2026-09-13 贯通小样）。 -->
+<script type="importmap">
+{
+  "imports": {
+    "node:fs": "/archify-manage/vendor/stubs/fs.mjs",
+    "node:path": "/archify-manage/vendor/stubs/path.mjs",
+    "node:url": "/archify-manage/vendor/stubs/url.mjs",
+    "node:crypto": "/archify-manage/vendor/stubs/crypto.mjs",
+    "node:http": "/archify-manage/vendor/stubs/http.mjs",
+    "node:https": "/archify-manage/vendor/stubs/https.mjs",
+    "node:net": "/archify-manage/vendor/stubs/net.mjs",
+    "node:dns/promises": "/archify-manage/vendor/stubs/dns-promises.mjs",
+    "node:child_process": "/archify-manage/vendor/stubs/child_process.mjs"
+  }
+}
+</script>
+</head>
+<body>
+<header class="top">
+  <div>
+    <p class="crumbs"><a href="/archify-manage/">项目首页</a> / <a id="bizLink" href="/archify-manage/">业务</a> / <span id="chartName">…</span></p>
+    <h1 id="title">图阅读</h1>
+    <p class="sub" id="summary"></p>
+  </div>
+  <p id="status" class="status" data-kind="info">正在读取图…</p>
+</header>
+<p id="errorBox" class="error" hidden></p>
+<section id="guideBox" class="guide" hidden></section>
+<nav id="versions" class="versions"></nav>
+<!-- 正看"当前（工作区）"时的登记信息行：看历史快照时这里说明图名与摘要的来处；由 read.js 填充。 -->
+<p id="snapshotMeta" class="muted" hidden></p>
+<!-- 「已选」状态条（E·选中同步＋F·节点详情阅读）：显示图里当前被原生选中的步骤，
+     并给一个「查看详情」入口；没有选中时整条隐藏，接不上增强阅读时在这里说明一句。 -->
+<p id="selectionBar" class="selection-bar" hidden>
+  <span id="selectionText"></span>
+  <button id="detailOpen" class="detail-open" type="button" hidden>查看详情</button>
+</p>
+<!-- 现场渲染挂载点：原生装配出的整页装在 iframe（独立小房间）里，样式自带。 -->
+<main id="stage" class="chart-stage"></main>
+<!-- 说明文档（details.md）分块展示：内容与所选版本同源，由 read.js 填充。 -->
+<section id="detailsPanel" class="details-panel" hidden></section>
+<!-- 源码证据（evidence.json）展示：清单与所选版本同源；代码片段永远取自各条引用写定的
+     那次提交（后来代码改了也不跟着变），由 read.js 另调 /api/evidence 填充。 -->
+<section id="evidencePanel" class="evidence-panel" hidden></section>
+<!-- 节点详情弹层（F）：读某个步骤在当前所选版本里的说明正文。
+     关闭三方式：右上按钮 / ESC / 点框外空白；弹层不碰图，关闭后图的缩放与位置原样。 -->
+<dialog id="detailDialog" class="detail-dialog">
+  <div class="detail-dialog-head">
+    <span>节点详情</span>
+    <button id="detailClose" class="detail-close" type="button" aria-label="关闭详情">×</button>
+  </div>
+  <div id="detailContent" class="detail-dialog-body"></div>
+  <p id="detailSource" class="detail-source"></p>
+</dialog>
+<script type="module" src="/archify-manage/assets/read.js"></script>
+<!-- 保存版本弹层（G）：给"当前（工作区）"这一份内容登记一个带名称/阶段/说明的版本。
+     关闭三方式与节点详情弹层一致：右上按钮 / ESC / 点框外空白。
+     打开时先问一次"现在能不能存"，并把服务端的内容摘要与页面正看的那一份对一下——
+     页面旧了就提示刷新并禁用保存，绝不把没确认过的内容存下来。 -->
+<dialog id="saveDialog" class="save-dialog">
+  <div class="detail-dialog-head">
+    <span>保存版本</span>
+    <button id="saveClose" class="detail-close" type="button" aria-label="关闭保存">×</button>
+  </div>
+  <div class="save-dialog-body">
+    <p id="saveCheck" class="save-check"></p>
+    <label class="save-field">
+      <span class="save-label">版本名称</span>
+      <input id="saveName" type="text" maxlength="200" autocomplete="off" placeholder="例如：首版设计">
+    </label>
+    <fieldset class="save-field save-stages">
+      <legend class="save-label">阶段</legend>
+      <label><input type="radio" name="saveStage" value="design" checked> 设计版</label>
+      <label><input type="radio" name="saveStage" value="implemented"> 实现版</label>
+    </fieldset>
+    <label class="save-field">
+      <span class="save-label">保存说明（可以不填）</span>
+      <textarea id="saveNote" rows="3" maxlength="1000" placeholder="这一版存下来是为了什么，或者和别人约定了什么"></textarea>
+    </label>
+    <p id="saveError" class="save-error" hidden></p>
+    <div class="save-actions">
+      <button id="saveSubmit" class="save-submit" type="button" disabled>保存</button>
+      <button id="saveCancel" class="save-cancel" type="button">取消</button>
+    </div>
+  </div>
+</dialog>
+</body>
+</html>

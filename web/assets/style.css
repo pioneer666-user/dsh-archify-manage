@@ -1,0 +1,239 @@
+/* 流程图管理页面基础样式（第一批） */
+* { box-sizing: border-box; }
+body {
+  margin: 0; padding: 24px 28px 48px;
+  font: 14px/1.65 "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  color: #e6e8ee; background: #14161c;
+}
+a { color: #7ab8ff; text-decoration: none; }
+a:hover { text-decoration: underline; }
+.top { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; margin-bottom: 20px; }
+.top h1 { margin: 0 0 4px; font-size: 22px; }
+.sub { margin: 0; color: #9aa3b5; max-width: 72ch; }
+.crumbs { margin: 0 0 6px; font-size: 13px; color: #9aa3b5; }
+.status { margin: 2px 0 0; font-size: 13px; color: #9aa3b5; white-space: nowrap; }
+.status[data-kind="ok"] { color: #4ade80; }
+.status[data-kind="bad"] { color: #f87171; }
+.status[data-kind="warn"] { color: #fbbf24; }
+.error {
+  margin: 0 0 16px; padding: 10px 14px; border-radius: 8px;
+  background: #3a1d22; border: 1px solid #7f2d38; color: #ffb4ba;
+  overflow-wrap: anywhere; white-space: pre-wrap;
+}
+.guide {
+  margin: 0 0 20px; padding: 14px 18px; border-radius: 10px;
+  background: #1d2430; border: 1px solid #32415a;
+}
+.guide h2 { margin: 0 0 8px; font-size: 16px; }
+.guide p { margin: 6px 0; color: #c3ccdd; }
+.guide pre {
+  margin: 8px 0; padding: 12px 14px; border-radius: 8px; overflow-x: auto;
+  background: #10131a; border: 1px solid #2c3850; color: #9fd0ff; font-size: 13px;
+}
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+.card {
+  display: block; padding: 16px 18px; border-radius: 10px;
+  background: #1c2029; border: 1px solid #2d3342; color: inherit;
+}
+.card:hover { border-color: #46536e; text-decoration: none; }
+.card h2 { margin: 0 0 6px; font-size: 16px; color: #e6e8ee; }
+.card p { margin: 0; color: #9aa3b5; }
+.card .meta { margin-top: 10px; font-size: 13px; color: #7c879c; }
+.badge {
+  display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px;
+  font-size: 12px; vertical-align: 1px;
+}
+.badge[data-kind="identical"] { background: #14321f; color: #4ade80; }
+.badge[data-kind="changed"] { background: #3a2b12; color: #fbbf24; }
+.badge[data-kind="no-snapshot"] { background: #2a2f3c; color: #9aa3b5; }
+.badge[data-kind="compare-failed"] { background: #2a2436; color: #c4b5fd; }
+.badge[data-kind="invalid"] { background: #3a1d22; color: #ffb4ba; }
+.panel {
+  margin: 0 0 20px; padding: 14px 18px; border-radius: 10px;
+  background: #1c2029; border: 1px solid #2d3342;
+}
+.panel h2 { margin: 0 0 10px; font-size: 15px; }
+.doc-list { margin: 0; padding-left: 18px; }
+.versions { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 16px; }
+.versions button, .versions .current-item {
+  padding: 6px 12px; border-radius: 8px; border: 1px solid #2d3342;
+  background: #1c2029; color: #e6e8ee; cursor: pointer; font-size: 13px;
+}
+.versions button[aria-current="true"] { border-color: #7ab8ff; background: #1b2a3d; }
+.stage-note { color: #9aa3b5; }
+/* 「已选」状态条（E·选中同步）：写在图层外面的一条提示，只报图里当前选中的步骤；
+   不给图加任何东西。未选中时整条隐藏（不给"没选"占位）。 */
+.selection-bar {
+  margin: 0 0 12px; padding: 8px 14px; border-radius: 8px;
+  background: #1b2a3d; border: 1px solid #35507a; color: #cfe0ff;
+}
+.selection-bar[data-kind="selected"] b { color: #fff; }
+.selection-bar[data-kind="warn"] {
+  background: #3a2b12; border-color: #7a5a1e; color: #fbbf24;
+}
+.detail-open {
+  margin-left: 12px; padding: 3px 12px; border-radius: 6px;
+  border: 1px solid #46679b; background: #24405f; color: #dbe9ff;
+  font-size: 13px; cursor: pointer;
+}
+.detail-open:hover { background: #2c4d72; }
+/* 节点详情弹层（F）：读某个步骤在当前所选版本里的说明；弹出期间挡住图（模态），
+   关闭后图原样——弹层不碰 iframe，缩放与位置都不动。 */
+.detail-dialog {
+  width: min(760px, calc(100vw - 48px)); max-height: 78vh; margin: auto; padding: 0;
+  border: 1px solid #32415a; border-radius: 12px; background: #1c2029; color: #e6e8ee;
+}
+.detail-dialog[open] { display: flex; flex-direction: column; }
+.detail-dialog::backdrop { background: rgba(6, 8, 12, .62); }
+.detail-dialog-head {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 14px 10px 22px; border-bottom: 1px solid #262c39;
+  color: #9aa3b5; font-size: 13px;
+}
+.detail-close {
+  width: 28px; height: 28px; border-radius: 6px; border: 1px solid #2d3342;
+  background: #171b23; color: #c3ccdd; font-size: 16px; line-height: 1; cursor: pointer;
+}
+.detail-close:hover { background: #232936; }
+.detail-dialog-body { padding: 16px 22px; overflow-y: auto; }
+.detail-dialog-body .detail-block { background: #171b23; }
+/* 保存版本（G）：版本条上的入口 + 保存弹层。弹层外观沿用节点详情弹层那一套，
+   只有表单区不同；关闭三方式与详情层一致。 */
+.versions button.save-open {
+  border-color: #3f7a56; background: #16301f; color: #bdf0cd;
+}
+.versions button.save-open:hover { background: #1d3d28; }
+.save-dialog {
+  width: min(560px, calc(100vw - 48px)); max-height: 82vh; margin: auto; padding: 0;
+  border: 1px solid #32415a; border-radius: 12px; background: #1c2029; color: #e6e8ee;
+}
+.save-dialog[open] { display: flex; flex-direction: column; }
+.save-dialog::backdrop { background: rgba(6, 8, 12, .62); }
+.save-dialog-body { padding: 16px 22px 18px; overflow-y: auto; }
+.save-check {
+  margin: 0 0 14px; padding: 8px 12px; border-radius: 8px;
+  background: #1b2130; border: 1px solid #2d3342; color: #c3ccdd; font-size: 13px;
+}
+.save-check[data-kind="ok"] { background: #14321f; border-color: #2f6b45; color: #bdf0cd; }
+.save-check[data-kind="warn"] { background: #3a2b12; border-color: #7a5a1e; color: #fbbf24; }
+.save-check[data-kind="bad"] { background: #3a1d22; border-color: #7a2b34; color: #ffb4ba; }
+.save-problems { margin: 6px 0 0; padding-left: 18px; }
+.save-field { display: block; margin: 0 0 14px; font-size: 13px; color: #c3ccdd; }
+.save-label { display: block; margin-bottom: 6px; color: #9aa3b5; }
+.save-field input[type="text"], .save-field textarea {
+  width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 8px;
+  border: 1px solid #2d3342; background: #141822; color: #e6e8ee; font-size: 13px;
+}
+.save-field textarea { resize: vertical; font-family: inherit; }
+.save-stages { border: 0; padding: 0; margin: 0 0 14px; }
+.save-stages label { margin-right: 16px; }
+.save-error {
+  margin: 0 0 12px; padding: 8px 12px; border-radius: 8px;
+  background: #3a1d22; border: 1px solid #7a2b34; color: #ffb4ba; font-size: 13px;
+}
+.save-actions { display: flex; gap: 10px; justify-content: flex-end; }
+.save-submit, .save-cancel {
+  padding: 7px 18px; border-radius: 8px; font-size: 13px; cursor: pointer;
+  border: 1px solid #2d3342; background: #1c2029; color: #e6e8ee;
+}
+.save-submit { border-color: #3f7a56; background: #1d3d28; color: #bdf0cd; }
+.save-submit:hover:not(:disabled) { background: #245031; }
+.save-submit:disabled { opacity: .5; cursor: not-allowed; }
+.save-cancel:hover { background: #232936; }
+.detail-lead-line { margin: 0 0 12px; color: #c3ccdd; max-width: 82ch; }
+.detail-miss { margin: 0 0 8px; color: #c3ccdd; max-width: 82ch; }
+.detail-source {
+  margin: 0; padding: 10px 22px 14px; border-top: 1px solid #262c39;
+  color: #7c879c; font-size: 12px;
+}
+.detail-source:empty { display: none; }
+/* 现场渲染画布：原生装配出的整页装在 iframe（独立小房间）里，样式自带；
+   这里只管小房间在阅读页里的占位与外观，滚动由小房间内部自己处理 */
+.chart-stage {
+  padding: 6px;
+  background: #0b0e12;
+  border: 1px solid #2d3342;
+  border-radius: 10px;
+}
+.chart-frame {
+  display: block;
+  width: 100%;
+  height: 78vh;
+  border: 0;
+  border-radius: 8px;
+  background: #0b0e12;
+}
+.muted { color: #7c879c; font-size: 13px; }
+/* 渲染失败说明卡（B·说人话）：坏的是哪份 / 原因 / 建议 + 可折叠技术原文 */
+.fail-card {
+  max-width: 640px;
+  margin: 40px auto;
+  padding: 18px 22px;
+  border-radius: 10px;
+  background: #1d2430;
+  border: 1px solid #32415a;
+}
+.fail-card h2 { margin: 0 0 8px; font-size: 17px; color: #ffb4ba; }
+.fail-card p { margin: 6px 0; line-height: 1.7; }
+.fail-which { color: #9aa3b5; font-size: 13px; }
+.fail-reason { color: #dce4f2; }
+.fail-hint { color: #4ade80; }
+.fail-detail { margin-top: 12px; }
+.fail-detail summary { cursor: pointer; color: #9aa3b5; font-size: 13px; }
+.fail-detail pre {
+  margin: 8px 0 0; padding: 10px 14px; border-radius: 8px;
+  background: #10131a; border: 1px solid #2c3850; color: #9fd0ff;
+  font-size: 12px; overflow-wrap: anywhere; white-space: pre-wrap;
+}
+/* 说明文档面板（C）：一个步骤一块，块内正文按段落与列表排 */
+.details-panel {
+  margin: 20px 0 0; padding: 16px 22px; border-radius: 10px;
+  background: #1c2029; border: 1px solid #2d3342;
+}
+.details-panel h2 { margin: 0 0 6px; font-size: 15px; }
+.details-lead { margin: 0 0 14px; color: #c3ccdd; max-width: 82ch; }
+.details-warn {
+  margin: 0 0 14px; padding: 10px 14px; border-radius: 8px;
+  background: #3a2b12; border: 1px solid #7a5a1e; color: #fbbf24;
+}
+.detail-block {
+  margin: 0 0 14px; padding: 12px 16px; border-radius: 8px;
+  background: #171b23; border: 1px solid #262c39;
+}
+.detail-block h3 { margin: 0 0 6px; font-size: 14px; color: #e6e8ee; }
+.detail-block p { margin: 0 0 6px; color: #c3ccdd; max-width: 82ch; }
+.detail-block p:last-child, .detail-block ul:last-child { margin-bottom: 0; }
+.detail-block ul { margin: 0 0 6px; padding-left: 20px; color: #c3ccdd; }
+.detail-block li { margin: 2px 0; }
+.detail-block code {
+  padding: 1px 5px; border-radius: 4px; background: #10131a; color: #9fd0ff; font-size: 12px;
+}
+.detail-sub { margin-left: 8px; color: #7c879c; font-size: 12px; font-weight: 400; }
+.detail-note { margin-left: 8px; color: #9aa3b5; font-size: 12px; font-weight: 400; }
+.detail-id { margin-left: 8px; font-weight: 400; }
+
+/* 源码证据面板（D）：一条证据一块；有效引用贴带行号代码，坏引用红字说原因 */
+.evidence-panel {
+  margin: 20px 0 0; padding: 16px 22px; border-radius: 10px;
+  background: #1c2029; border: 1px solid #2d3342;
+}
+.evidence-panel h2 { margin: 0 0 6px; font-size: 15px; }
+.ev-summary { margin: 0 0 6px; color: #c3ccdd; }
+.ev-warn {
+  margin: 0; padding: 10px 14px; border-radius: 8px;
+  background: #3a2b12; border: 1px solid #7a5a1e; color: #fbbf24;
+}
+.ev-block {
+  margin: 0 0 14px; padding: 12px 16px; border-radius: 8px;
+  background: #171b23; border: 1px solid #262c39;
+}
+.ev-block:last-child { margin-bottom: 0; }
+.ev-block h3 { margin: 0 0 6px; font-size: 14px; color: #e6e8ee; }
+.ev-src { margin: 0 0 6px; color: #9aa3b5; font-size: 12px; }
+.ev-code {
+  margin: 0; padding: 10px 14px; border-radius: 8px;
+  background: #10131a; border: 1px solid #2c3850; color: #c3ccdd;
+  font-size: 12px; line-height: 1.6; overflow-x: auto;
+}
+.ev-bad { margin: 0; color: #ffb4ba; }
+.ev-block-bad { border-color: #5a2c38; }
