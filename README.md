@@ -1,108 +1,158 @@
-# @specdev/dsh-archify-manage · DSH 流程图管理插件
+# @specdev/dsh-archify-manage · Workflow-diagram manager plugin for DSH
 
-简体中文 ｜ [English](README.en.md)
+English | [简体中文](README.zh.md)
 
-DSH（DeepSeek Harness）插件：浏览用 Archify 生成的业务流程图目录，按 Git 附注标签阅读
-历史版本，并把当前已提交的图内容登记成一个有名称的版本（保存版本）。唯一的写动作就是
-给提交挂一个附注标签——**不改动业务项目的文件、分支与提交**。
+A plugin for DSH (DeepSeek Harness): browse a directory of Archify-generated business
+workflow diagrams, read historical versions via Git annotated tags, and register the
+currently committed diagram content as a named version ("save version"). The only write
+action is attaching an annotated tag to a commit — **it never touches your business
+project's files, branches, or commits**.
 
-> 这个插件来自我对 AI 开发流程的探索：方法论与插件在同一个研究里互相推动，本仓库是
-> 整理后开源的插件源码。
+> This plugin grew out of my exploration of AI-assisted development workflows: the
+> methodology and the tool evolved together in the same research. This repository is the
+> cleaned-up, open-source home of the plugin.
 
-## 功能
+## Features
 
-- **三页浏览**：项目首页（项目与业务列表）→ 业务页（介绍、业务文档入口、图列表——每图
-  带快照数与当前状态徽标：一致／已改动／无快照）→ 阅读页（版本条、现场渲染的交互图、
-  说明文档分块、源码证据）。
-- **历史版本阅读**：保存的版本即 Git 附注标签；阅读页按版本条切换，图、说明与源码证据
-  与所选版本同源（代码片段取自引用写定的固定提交）。
-- **节点详情**：图上点节点即可读该步骤在当前所选版本里的那一节说明（没写、没文档、
-  读不开、未分节都如实说明，不编造）。
-- **保存版本（唯一写操作）**：在"当前（工作区）"视图上把已提交的图内容登记成一个有
-  名称的版本；还有没提交的改动会被拦下并说明是哪个文件，页面上看到的内容与将要保存的
-  不一致会要求先刷新，同一份内容同一阶段重复保存不会多存。
-- **随包技能 archify-maker**：插件装载时注册到 DSH，安装后直接可用；提供"设计 → 实现 →
-  证据 → 修改"四段流程指引与 workflow 图校验命令（内容见包内 `skills/archify-maker/`）。
+- **Zero-config workspace entry**: works out of the box — no project directory to
+  configure. The 「流程图管理」 button in the DSH sidebar expands the list of your DSH
+  workspaces in place; click one, and that workspace's management page opens in a new
+  tab (your DSH session stays where it is). The link carries `?workspace=<id>`, binding
+  the page to that workspace's `docs/archify/`.
+- **Three pages**: project home (project + business list) → business page (intro, doc
+  entries, diagram list — each diagram shows its snapshot count and a status badge:
+  in sync / modified / no snapshot) → reading page (version bar, live-rendered
+  interactive diagram, sectioned explanation doc, source-code evidence).
+- **Historical versions**: saved versions are Git annotated tags; the reading page
+  switches via the version bar, and the diagram, explanation, and evidence all come
+  from the selected version (code snippets are taken from the commit pinned by each
+  reference).
+- **Node details**: click a node on the diagram to read that step's section of the
+  explanation for the selected version (missing, unreadable, or unsectioned cases are
+  reported honestly — nothing is made up).
+- **Save version (the only write action)**: on the "current (working tree)" view,
+  register the committed diagram content as a named version; uncommitted changes block
+  the save and name the offending file, stale page content requires a refresh first,
+  and saving the same content for the same stage twice never creates duplicates.
+- **Unified authentication via the DSH login**: pages and APIs reuse the DSH login
+  session and origin checks; unauthenticated or untrusted-origin requests are rejected
+  (with a prompt to log in through the DSH start address first), and an unavailable
+  authentication service fails closed.
+- **Bundled skill `archify-maker`**: registered into DSH when the plugin loads, ready
+  to use after installation; provides a four-stage guide (design → implement →
+  evidence → modify) and a workflow-diagram validation command (see
+  `skills/archify-maker/` inside the package).
 
-## 安装
+## Installation
 
-前置：已安装 DSH（DeepSeek Harness）。本插件在 DSH 0.1.5-rc.1 的 web profile 上做过
-从安装到移除的全链路验收。
+Prerequisite: DSH (DeepSeek Harness) installed. The plugin has been verified end to
+end (install → use → remove) on DSH 0.1.6-alpha.2, web profile, including the
+workspace entry and unified authentication. On hosts without a workspace registry,
+the page falls back to the manual `repoRoot` mode (see step 4).
 
-1. 从 GitHub Release 下载 `specdev-dsh-archify-manage-<版本>.tgz`；
-2. 安装：`dsh plugin --profile web add <tgz 路径>`（`--profile` 指定装进哪个 profile，
-   **必填**；**路径不能含空格**——DSH 侧限制，含空格会报 ENOENT，先拷到无空格目录再
-   add）；
-3. 配置业务项目目录（`repoRoot`）。插件默认不指向任何仓库；未配置时页面会给出可复制的
-   配置示例。配置层优先级（后者覆盖前者）：组合包层 → profile 自己的 `cordis.patch.yml`
-   → home 级 → `--patch` overlay。profile 层示例（**按 id 覆盖写法，勿用 `- insert:`**——
-   insert 会新增重复条目导致启动失败）：
+1. Download `specdev-dsh-archify-manage-<version>.tgz` from the GitHub Release;
+2. Install: `dsh plugin --profile web add <path-to-tgz>` (`--profile` selects the
+   profile to install into and is **required**; **the path must not contain
+   spaces** — a DSH-side limitation; paths with spaces fail with ENOENT, so copy
+   the file to a space-free directory first);
+3. Restart DSH. No configuration needed: click 「流程图管理」 in the sidebar to
+   expand the workspace list, click a workspace, and its management page opens in a
+   new tab, ready to use (it rides on your DSH login session);
+4. (Compatibility: pointing at a project directory manually) If your host has no
+   workspace registry, or you want to pin the plugin to a specific repository, you
+   can still configure `repoRoot` — the plugin points to no repository by default,
+   and when nothing is configured and the link carries no workspace id, the page
+   shows a copyable config sample. Config precedence (later overrides earlier):
+   bundle patch → the profile's own `cordis.patch.yml` → home level → `--patch`
+   overlay. Profile-level example (**override by id — do not use `- insert:`**,
+   which adds a duplicate entry and crashes startup):
    ```yaml
    - id: specdev-archify-manage
      config:
-       repoRoot: 'D:/你的/业务项目仓库'
+       repoRoot: 'D:/your/business-project-repo'
    ```
-4. 重启 DSH（配置在启动时组合，不热生效）；侧栏出现「流程图管理」按钮，进入
-   `/archify-manage/`。
 
-## 业务项目的组织约定
+## Expected layout of the business project
 
-插件按固定目录约定读取业务项目：
+The plugin reads the business project through a fixed directory convention:
 
 ```text
 docs/archify/
-  project.json                        # 项目（schema: specdev-archify/project/1）
-  <业务id>/business.json              # 业务（id / name / intro / docs）
-  <业务id>/<图id>/chart.json          # 图（id / name / summary；图编号全项目唯一）
-  <业务id>/<图id>/workflow.json       # 图源（Archify workflow JSON）
-  <业务id>/<图id>/details.md          # 节点详情
-  <业务id>/<图id>/evidence.json       # 源码证据引用
+  project.json                        # project (schema: specdev-archify/project/1)
+  <business-id>/business.json         # business (id / name / intro / docs)
+  <business-id>/<chart-id>/chart.json     # chart (id / name / summary; chart numbers are project-wide unique)
+  <business-id>/<chart-id>/workflow.json  # chart source (Archify workflow JSON)
+  <business-id>/<chart-id>/details.md     # node details
+  <business-id>/<chart-id>/evidence.json  # source-code evidence references
 ```
 
-保存的版本 = 附注标签 `archify/<图编号>/<版本标识>`；读取时做五项校验（是附注标签、
-剥壳后指向提交、标签 message 为合法 JSON 且必填字段齐全、图编号与标签名一致、目录以
-约定根开头），不合规的计入"无效标签"并忽略，不当作快照。
+In workspace mode, the workspace directory must be the **top level** of a Git
+repository (subdirectories are rejected with an explanation instead of silently
+binding to the parent repository); the manual `repoRoot` mode keeps the older,
+unrestricted behavior.
 
-## 页面与 API
+A saved version = annotated tag `archify/<chart-number>/<version-id>`. On read, five
+checks are applied (is an annotated tag, peels to a commit, tag message is valid JSON
+with required fields, chart number matches the tag name, directory starts with the
+convention root); non-conforming tags are counted as "invalid" and ignored, not
+treated as snapshots.
 
-| 路径 | 内容 |
+## Pages and API
+
+Pages and APIs are same-origin and require an active DSH login (unauthenticated
+access is rejected with a prompt to log in through the DSH start address first).
+Links opened from the workspace list carry `?workspace=<id>` automatically; without
+one, the manually configured `repoRoot` is used.
+
+| Path | Content |
 |---|---|
-| `/archify-manage/` | 项目首页：项目名 + 业务列表 |
-| `/archify-manage/business/<业务id>` | 业务页：介绍、业务文档入口、图列表（快照数与状态徽标；编号冲突与说明文件问题会明确标出） |
-| `/archify-manage/read/<业务id>/<图id>?v=current\|<标签名>` | 阅读页：版本条 + 现场渲染的交互图 + 说明文档分块 + 源码证据；图上点节点读详情；"当前（工作区）"视图可保存版本 |
+| `/archify-manage/` | Project home: project name + business list |
+| `/archify-manage/business/<business-id>` | Business page: intro, doc entries, diagram list (snapshot counts and status badges; numbering conflicts and doc problems are called out) |
+| `/archify-manage/read/<business-id>/<chart-id>?v=current\|<tag-name>` | Reading page: version bar + live-rendered interactive diagram + sectioned explanation + source evidence; click a node for details; "current (working tree)" view offers save-version |
 
-API（同源）：只读 `GET /api/inventory`、`/api/chart`、`/api/doc`、`GET /api/evidence`
-（留给脚本用）；`POST /api/evidence` 接收页面正文的 evidence 原文做切片，防两次请求之间
-文件被保存造成图与证据错配；`/api/snapshots` 是**唯一的写操作**——`GET` 为保存前检查
-（当前提交号、能不能存、逐文件问题、内容摘要），`POST` 存一版（`head`/`fingerprint`
-钉住确认过的提交与内容，后台有新提交或内容对不上都会拒绝并要求刷新）。
+API (same origin): `GET /api/workspaces` lists the DSH workspaces (used by the
+sidebar menu); the rest are read-only `GET /api/inventory`, `/api/chart`, `/api/doc`,
+and `GET /api/evidence` (for scripts); `POST /api/evidence` receives the evidence
+JSON from the page's own payload for slicing, preventing mismatch when files change
+between requests; `/api/snapshots` is **the only write operation** — `GET` is the
+pre-save check (current commit, whether saving is allowed, per-file issues, content
+digest), `POST` saves a version (`head`/`fingerprint` pin the commit and content you
+confirmed; new commits or mismatched content in between are rejected with a refresh
+request).
 
-## 从源码构建
+## Building from source
 
-Node ≥ 22。在本目录：
+Node ≥ 22. In this directory:
 
 ```sh
-npm install                    # 安装开发依赖（esbuild / typescript）
-npm run typecheck              # 类型检查（tsc --noEmit）
-npm run build                  # 构建 dist/（esbuild 打包）
-npm pack --pack-destination .  # 产出 specdev-dsh-archify-manage-<版本>.tgz
+npm install                    # install dev dependencies (esbuild / typescript)
+npm run typecheck              # type check (tsc --noEmit)
+npm run build                  # build dist/ (esbuild bundle)
+npm pack --pack-destination .  # produce specdev-dsh-archify-manage-<version>.tgz
 ```
 
-（可选）行为冒烟与接口层验收：`node scripts/smoke.mjs`、`node scripts/check-save.mjs`
-——自包含，自动生成临时示例仓，不碰你的业务项目。
+(Optional) behavioral smoke test and interface-level acceptance: `node scripts/smoke.mjs`,
+`node scripts/check-save.mjs` — self-contained, they generate a temporary sample
+repository and never touch your business project.
 
-## 能力边界（如实）
+## Boundaries (honest)
 
-- 唯一写操作是保存版本（挂附注标签）；**删版本、版本改名、跨仓库、推送远端不在范围**。
-- 已验证环境：DSH 0.1.5-rc.1（web profile）、Windows、单机。未做真实 AI 会话的端到端
-  验收（技能触发 → 按技能读参考 → 产出），也未在另一台机器上验证。
-- 节点级增强阅读目前是第 1 步（选中同步 + 节点详情阅读）；节点关联跳转、节点详情与
-  源码对照过滤、页面内问 DSH 属后续版本。
-- 渲染与校验依赖随包分发的 Archify 渲染器副本（MIT），见 `vendor/archify-renderer/`；
-  副本升级由维护者进行。
+- The only write action is saving a version (attaching an annotated tag); **deleting
+  versions, renaming, cross-repository use, and pushing are out of scope**.
+- Verified environment: DSH 0.1.6-alpha.2 (web profile; workspace entry and unified
+  authentication verified end to end), Windows, a single machine. The manual
+  `repoRoot` mode is covered by the bundled interface-level script
+  `scripts/check-save.mjs`, which spins up its own fake host and is host-agnostic.
+  No end-to-end acceptance with a real AI session (skill trigger → read references →
+  produce) has been done, nor verification on another machine.
+- Node-level enhanced reading is at step 1 (selection sync + node-detail reading);
+  node cross-references, node-detail evidence filtering, and asking DSH from the page
+  are future work.
+- Rendering and validation rely on the bundled Archify renderer copy (MIT), see
+  `vendor/archify-renderer/`; upgrading the copy is a maintainer action.
 
-## 许可证
+## License
 
-MIT（许可证文件见仓库根 `LICENSE`）。随包分发的 Archify 渲染器副本同为 MIT，其许可证与
-第三方声明随副本携带于 `vendor/archify-renderer/archify/`（`LICENSE`、
-`THIRD_PARTY_NOTICES.md`）。
+MIT (see `LICENSE` at the repository root). The bundled Archify renderer copy is also
+MIT; its license and third-party notices travel with the copy in
+`vendor/archify-renderer/archify/` (`LICENSE`, `THIRD_PARTY_NOTICES.md`).

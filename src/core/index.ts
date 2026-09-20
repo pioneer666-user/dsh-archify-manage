@@ -1,6 +1,6 @@
 // 管理逻辑公共出口。本目录是纯 Node 模块，不 import 任何 DSH 模块（D1 三块结构的第一块）。
 export { CoreError } from './errors.ts'
-export { runGit, gitShowFileOptional, readWorktreeFileOptional, resolveCommit, worktreeDirExists, worktreeFileExists, GIT_TIMEOUT_MS, MAX_FILE_BYTES } from './git.ts'
+export { runGit, assertRepoUsable, assertRepoTopLevel, gitShowFileOptional, readWorktreeFileOptional, resolveCommit, worktreeDirExists, worktreeFileExists, GIT_TIMEOUT_MS, MAX_FILE_BYTES } from './git.ts'
 export { listArchifyTags, snapshotsForChart, findSnapshot, parseTagName, type RawTagRecord } from './snapshots.ts'
 export { loadEvidence, resolveEvidenceRefs, splitLines } from './evidence.ts'
 export { readInventory } from './inventory.ts'

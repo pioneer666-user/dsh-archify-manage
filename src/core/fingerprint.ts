@@ -7,7 +7,7 @@ import { createHash } from 'node:crypto'
 import { CHART_FILE_NAMES, FILE_KEY } from './chart-files.ts'
 import type { ChartFiles } from './types.ts'
 
-/** \r\n → \n：提交里 LF、工作区 CRLF 只差换行不算修改（2026-09-16 核实本机 autocrlf=true）。 */
+/** \r\n → \n：提交里 LF、工作区 CRLF 只差换行不算修改（Windows autocrlf=true 常态）。 */
 export function normalizeEol(text: string): string {
   return text.replace(/\r\n/g, '\n')
 }

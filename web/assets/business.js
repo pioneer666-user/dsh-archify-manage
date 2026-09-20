@@ -1,5 +1,5 @@
 // 业务页：业务介绍、文档入口、图列表（每图带快照数与当前状态）。
-import { $, el, fetchJson, renderGuide, setStatus, showError, statusBadge } from './common.js'
+import { $, el, fetchJson, pageTitle, renderEmptyWorkspaceParam, renderGuide, renderRepoLine, renderRepoState, setStatus, showError, statusBadge, workspaceParamEmpty, wsUrl } from './common.js'
 
 function businessIdFromLocation() {
   const parts = location.pathname.split('/').filter(Boolean) // ['archify-manage','business','<id>']
@@ -7,19 +7,22 @@ function businessIdFromLocation() {
 }
 
 async function main() {
+  if (workspaceParamEmpty) return renderEmptyWorkspaceParam()
   const id = businessIdFromLocation()
   if (!id) return showError('缺少业务 id（路径应为 /archify-manage/business/<业务id>）')
   let inventory
   try {
-    inventory = await fetchJson('/archify-manage/api/inventory')
+    inventory = await fetchJson(wsUrl('/archify-manage/api/inventory'))
   } catch (error) {
+    if (renderRepoState(error)) return
     return showError(error.message)
   }
   if (inventory.code === 'repo-not-configured') return renderGuide(inventory)
+  renderRepoLine(inventory.repo)
 
   const business = inventory.businesses.find((b) => b.id === id)
   if (!business) return showError(`业务不存在：${id}`)
-  document.title = `${business.name} · 流程图管理`
+  document.title = pageTitle(business.name, inventory.repo)
   $('bizName').textContent = business.name
   $('title').textContent = business.name
   if (business.descriptorError) {
@@ -34,7 +37,7 @@ async function main() {
     for (const doc of business.docs) {
       const li = el('li')
       const a = el('a')
-      a.href = `/archify-manage/api/doc?business=${encodeURIComponent(id)}&path=${encodeURIComponent(doc)}`
+      a.href = wsUrl(`/archify-manage/api/doc?business=${encodeURIComponent(id)}&path=${encodeURIComponent(doc)}`)
       a.target = '_blank'
       a.rel = 'noopener'
       a.textContent = doc
@@ -48,7 +51,7 @@ async function main() {
   root.textContent = ''
   for (const chart of business.charts) {
     const card = el('a', 'card')
-    card.href = `/archify-manage/read/${id}/${chart.id}`
+    card.href = wsUrl(`/archify-manage/read/${id}/${chart.id}`)
     const h = el('h2')
     h.textContent = chart.name
     h.insertAdjacentHTML('beforeend', statusBadge(chart.currentStatus, chart.compareError))

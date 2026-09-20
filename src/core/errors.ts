@@ -5,7 +5,7 @@ export class CoreError extends Error {
   httpStatus: number
 
   // 字段在构造函数体内赋值（不用 TS 参数属性）：core 全部保持"可擦除语法"，
-  // 纯 Node 剥类型模式即可加载，scripts/smoke.mjs 不依赖 tsx（2026-09-15 评审 #5 迁库时修）。
+  // 纯 Node 剥类型模式即可加载，scripts/smoke.mjs 不依赖 tsx。
   constructor(code: string, message: string, httpStatus: number = 500) {
     super(message)
     this.code = code
@@ -16,6 +16,10 @@ export class CoreError extends Error {
 
 // 常用 code → 状态的约定（接入层直接用 httpStatus 字段，这里只列含义）：
 //   no-convention-root   未找到约定根（404）
+//   bad-inventory        约定树说明文件格式错误（500）
+//   repo-unavailable     仓库根目录不存在/不是目录/读不了（404/403，第 2 步状态区分）
+//   not-a-git-repo       仓库根不是可用的 Git 仓库（422，第 2 步状态区分）
+//   repo-not-top-level   目录在 Git 仓库内但不是仓库顶层（422；仅工作区绑定检查）
 //   file-too-large       单文件超过读取上限（413）
 //   git-timeout          git 调用超时（504）
 //   git-failed           git 调用失败（500，message 带原始 stderr 首行）

@@ -1,24 +1,27 @@
 // 项目首页：项目名 + 业务列表（清单完全来自约定树）。
-import { $, el, fetchJson, renderGuide, setStatus, showError, statusBadge } from './common.js'
+import { $, el, fetchJson, pageTitle, renderEmptyWorkspaceParam, renderGuide, renderRepoLine, renderRepoState, setStatus, showError, statusBadge, workspaceParamEmpty, wsUrl } from './common.js'
 
 async function main() {
+  if (workspaceParamEmpty) return renderEmptyWorkspaceParam()
   let inventory
   try {
-    inventory = await fetchJson('/archify-manage/api/inventory')
+    inventory = await fetchJson(wsUrl('/archify-manage/api/inventory'))
   } catch (error) {
+    if (renderRepoState(error)) return
     return showError(error.message)
   }
   if (inventory.code === 'repo-not-configured') return renderGuide(inventory)
 
-  document.title = `${inventory.project.name} · 流程图管理`
+  document.title = pageTitle(inventory.project.name, inventory.repo)
   $('projectName').textContent = inventory.project.name
   if (inventory.project.description) $('projectDesc').textContent = inventory.project.description
+  renderRepoLine(inventory.repo)
 
   const root = $('root')
   root.textContent = ''
   for (const business of inventory.businesses) {
     const card = el('a', 'card')
-    card.href = `/archify-manage/business/${business.id}`
+    card.href = wsUrl(`/archify-manage/business/${business.id}`)
     const h = el('h2')
     h.textContent = business.name
     card.appendChild(h)

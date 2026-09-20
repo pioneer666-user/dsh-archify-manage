@@ -1,11 +1,11 @@
-// 源码证据：严格校验 + 按固定提交切片（设计 §2.3，审查问题②的处置）。
+// 源码证据：严格校验 + 按固定提交切片。
 // 任何一条引用不满足约束 → 该引用明确报错（写明哪条、差在哪）；
 // 绝不自动收紧行范围，绝不展示近似内容。文件后来变了不算引用错误——证据永远按固定提交读。
 import { gitShowFileOptional, resolveCommit } from './git.ts'
 import { CoreError } from './errors.ts'
 import type { EvidenceRefResult, EvidenceResult } from './types.ts'
 
-/** 按 \n 切行；结尾的空行不算一行（与贯通小样的切片语义一致）。 */
+/** 按 \n 切行；结尾的空行不算一行。 */
 export function splitLines(text: string): string[] {
   const lines = text.split('\n')
   if (lines.length > 0 && lines[lines.length - 1] === '') lines.pop()

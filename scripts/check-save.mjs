@@ -1,4 +1,4 @@
-// 保存版本·接口层验收（实施计划 §九 步骤 2）：入库、可重跑、自包含。
+// 保存版本·接口层验收：入库、可重跑、自包含。
 // 流程：① 构建 dist（scripts/build.mjs）→ ② 用假 DSH 装载**构建产物** dist/index.js
 //       （只给 webServer.register / effect 两个能力，访问其他能力当场报错）→ ③ 本地起 HTTP →
 //       ④ 走真实路由断言 GET/POST /api/snapshots 的语义 → ⑤ 回执写 local-artifacts/smoke-runs/。
@@ -140,8 +140,19 @@ const capabilities = {
     effectLabel = label
     disposer = fn()
   },
+  // 1d 起插件装载时会注册随包技能（inject 含 skills/fs）：提供最小 skills 让装载走通，
+  // fs 显式为 undefined（自查走"ctx.fs 不可用"分支，不触发 Proxy 的未提供报错）。
+  skills: { register() {} },
+  fs: undefined,
+  // 路由入口统一过 connection.requestRejection：本脚本聚焦保存业务，桩明确放行（undefined）；
+  // 认证门的拒绝行为不在本脚本范围。
+  connection: { requestRejection: () => undefined },
+  // 第二期：带 workspace 的链接按请求软探测注册表；假环境没有这个服务（探测缺席的真实语义）。
+  get(name) {
+    return undefined
+  },
 }
-// 只提供这两项能力：插件一旦访问别的 DSH 能力，这里当场抛错（不静默放过）
+// 只提供这几项能力：插件一旦访问别的 DSH 能力，这里当场抛错（不静默放过）
 const fakeCtx = new Proxy(capabilities, {
   get(target, key) {
     if (key in target) return target[key]
@@ -150,7 +161,7 @@ const fakeCtx = new Proxy(capabilities, {
 })
 plugin.apply(fakeCtx, { repoRoot: REPO })
 expect('插件导出的 name', plugin.name, 'specdev-archify-manage')
-expect('插件声明的 inject', plugin.inject, ['webServer'])
+expect('插件声明的 inject', plugin.inject, ['webServer', 'connection', 'skills', 'fs'])
 expect('注册了一次前缀路由', registered.length, 1)
 expect('路由形状', [registered[0]?.kind, registered[0]?.path], ['prefix', PREFIX])
 expect('effect 拿到的是清理函数与标签', [typeof disposer, effectLabel], ['function', '流程图管理路由清理'])
@@ -199,6 +210,9 @@ const versionCount = async (biz, chart) => {
 log('\n## ④ 真实路由断言')
 
 log('\n### 4.1 GET 检查')
+// 出错响应也带 repo 块（空状态/错误页要显示工作区信息；手动模式同样带）
+const missingChart = await getJson(`${PREFIX}/api/chart?business=${BIZ}&chart=no-such-chart&v=current`)
+expect('图不存在 404 且响应带 repo 块', [missingChart.status, missingChart.body.code, missingChart.body.repo?.mode], [404, 'not-found', 'manual'])
 const clean = await check(BIZ, CHART)
 expect('干净图 200 且 ok=true、没有问题', [clean.status, clean.body.ok, clean.body.problems], [200, true, []])
 expect('干净图 head＝仓库 HEAD', clean.body.head, HEAD0)
@@ -362,7 +376,7 @@ expect('真没存上才说没能保存',
 expect('成功的结果带回版本名（状态条要说"已保存「…」"）',
   saveOutcome({ responded: true, ok: true, status: 200, body: { alreadySaved: false, snapshot: { tag: 't', meta: { name: '首版设计' } } } }).label, '首版设计')
 
-log('\n### 4.8 页面接线形状（读真实服务出来的 HTML/JS 原文；观感与手感由作者在浏览器里验）')
+log('\n### 4.8 页面接线形状（读真实服务出来的 HTML/JS 原文；观感与手感以浏览器实际页面为准）')
 const readHtml = await (await fetch(`${origin}${PREFIX}/read/${BIZ}/${CHART}`)).text()
 const readJs = await (await fetch(`${origin}${PREFIX}/assets/read.js`)).text()
 const resultJs = await (await fetch(`${origin}${PREFIX}/assets/save-result.js`)).text()

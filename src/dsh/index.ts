@@ -8,6 +8,8 @@ import { fileURLToPath } from 'node:url'
 import {
   CoreError,
   MAX_FILE_BYTES,
+  assertRepoTopLevel,
+  assertRepoUsable,
   readInventory,
   readChartPage,
   readWorktreeFileOptional,
@@ -17,10 +19,11 @@ import {
 } from '../core/index.ts'
 
 export const name = 'specdev-archify-manage'
-// skills＝DSH 技能注册表（dsh-skill）、fs＝文件后端（dsh-fs-sandbox，读不受沙箱限制），
+// skills＝DSH 技能注册表（dsh-skill）、fs＝文件后端（dsh-fs-sandbox，读不受沙箱限制）、
+// connection＝宿主认证（dsh-client-connection 的 requestRejection：Host/Origin 栅栏＋会话 cookie），
 // 都是 dsh 基座必挂服务，与 webServer 同源，按必填注入——装载时即保证自查可用。
-// 若未来出现"有 webServer 无这两项"的组合，装载会等不到服务——那是部署面变化，届时再议。
-export const inject = ['webServer', 'skills', 'fs']
+// 若未来出现"有 webServer 无这几项"的组合，装载会等不到服务——那是部署面变化，届时再议。
+export const inject = ['webServer', 'connection', 'skills', 'fs']
 
 interface ManageConfig {
   repoRoot?: string
@@ -158,7 +161,7 @@ function repoNotConfigured(res: import('node:http').ServerResponse): void {
     guide: {
       where: '$DSH_HOME/profiles/<profile名>/cordis.patch.yml（profile 自己的配置层，按 id 覆盖本插件的行）',
       // 勿写 - insert：insert 是新增条目，会与本包自带条目撞 id（duplicate loader entry）启动失败；
-      // 同 id 不带 insert 才是覆盖。实测见 DEVELOPING.md 坑4 与安装闭环验收回执。
+      // 同 id 不带 insert 才是覆盖。
       example: [
         "- id: specdev-archify-manage",
         "  config:",
@@ -208,6 +211,110 @@ function requireId(res: import('node:http').ServerResponse, value: string | null
     return null
   }
   return value
+}
+
+// ── 工作区绑定（第二期第 2 步）──────────────────────────────
+// 链接带 ?workspace=<工作区标识> 时按该工作区的目录读写；不带时用配置的 repoRoot（手动模式，老用法原样兼容）。
+// 注册表按请求软探测（服务异步激活，装载时点可能缺席）。
+
+/**
+ * connection 服务的结构类型（只声明认证门用到的 requestRejection；不 import DSH 内部模块，
+ * 与本文件既有约定一致）。返回值：undefined＝放行，401＝未认证，403＝Host/Origin 栅栏拒绝。
+ */
+interface ConnectionLike {
+  requestRejection: (request: unknown) => number | undefined
+}
+
+/**
+ * workspaceRegistry 服务里用到的形状（只声明 get/list；不 import DSH 内部模块，与本文件既有约定一致）。
+ * list 同步返回工作区实体数组。
+ */
+interface WorkspaceRegistryLike {
+  get: (id: string) => { readonly title?: unknown; readonly path?: unknown } | undefined
+  list: () => Array<{ readonly id?: unknown; readonly title?: unknown; readonly path?: unknown }>
+}
+
+/** 一次请求绑定的业务目录：root 供读写；info 供页面头部展示与辨认（工作区名/路径或手动配置）。 */
+export interface RepoBinding {
+  root: string
+  info: { mode: 'workspace' | 'manual'; title: string; path: string; workspaceId: string }
+}
+
+/**
+ * 按请求参数解析业务目录。纯函数（不碰 fs/git；目录本身的可用性由调用方随后 assertRepoUsable 预检）。
+ * 解析失败返回带稳定 code 的 CoreError，由调用方按 code 决定怎么回（repo-not-configured 有专门的配置指引）。
+ */
+export function resolveRepoBinding(params: {
+  workspaceParam: string | null
+  manualRepoRoot: string
+  registry: WorkspaceRegistryLike | undefined
+}): RepoBinding | { error: CoreError } {
+  const manual = params.manualRepoRoot.trim()
+  if (params.workspaceParam === null) {
+    if (!manual) {
+      return { error: new CoreError('repo-not-configured', '尚未配置业务项目目录（repoRoot），链接里也没有工作区标识。', 400) }
+    }
+    return { root: manual, info: { mode: 'manual', title: '手动配置', path: manual, workspaceId: '' } }
+  }
+  if (!ID_PATTERN.test(params.workspaceParam)) {
+    return { error: new CoreError('bad-request', `工作区标识不合法：${params.workspaceParam}`, 400) }
+  }
+  if (params.registry === undefined) {
+    return {
+      error: new CoreError(
+        'workspace-service-unavailable',
+        '当前 DSH 没有提供工作区服务（可能是 DSH 版本变化）。请从 DSH 的工作区重新进入；或改用手动配置模式：在插件配置里填 repoRoot，并去掉链接里的 workspace 参数。',
+        503,
+      ),
+    }
+  }
+  const workspace = params.registry.get(params.workspaceParam)
+  if (workspace === undefined) {
+    return {
+      error: new CoreError(
+        'workspace-not-found',
+        `工作区不存在或已失效（${params.workspaceParam}）。可能该工作区已被删除，或这个链接来自另一个 DSH 实例；请从 DSH 的工作区重新进入。`,
+        404,
+      ),
+    }
+  }
+  const root = typeof workspace.path === 'string' ? workspace.path.trim() : ''
+  if (!root) {
+    return { error: new CoreError('workspace-not-found', `工作区 ${params.workspaceParam} 没有可用的目录路径。`, 500) }
+  }
+  const title = typeof workspace.title === 'string' && workspace.title.trim() ? workspace.title.trim() : '(未命名工作区)'
+  return { root, info: { mode: 'workspace', title, path: root, workspaceId: params.workspaceParam } }
+}
+
+/**
+ * 列出 DSH 工作区（第 4 步·入口 B）：侧栏按钮点开后取这份清单供挑选，每项带
+ * id（进链接）、title（显示）、path（辨认同名工作区）。纯函数，不碰 fs/git。
+ * 注册表缺席（版本漂移）返回稳定错误码，由按钮就地说明并保留"直接打开管理页"兜底。
+ */
+export function listWorkspaces(
+  registry: WorkspaceRegistryLike | undefined,
+): { workspaces: Array<{ id: string; title: string; path: string }> } | { error: CoreError } {
+  if (registry === undefined) {
+    return {
+      error: new CoreError(
+        'workspace-service-unavailable',
+        '当前 DSH 没有提供工作区服务（可能是 DSH 版本变化），列不出工作区清单。',
+        503,
+      ),
+    }
+  }
+  const workspaces: Array<{ id: string; title: string; path: string }> = []
+  for (const workspace of registry.list()) {
+    const id = typeof workspace.id === 'string' ? workspace.id : ''
+    // 没有可用编号的工作区进不了链接，跳过该项，不中断整个清单。
+    if (!ID_PATTERN.test(id)) continue
+    workspaces.push({
+      id,
+      title: typeof workspace.title === 'string' && workspace.title.trim() ? workspace.title.trim() : '(未命名工作区)',
+      path: typeof workspace.path === 'string' ? workspace.path : '',
+    })
+  }
+  return { workspaces }
 }
 
 // ── 随包技能注册（1d 方案 A）──────────────────────────────────
@@ -346,32 +453,43 @@ export function apply(
   ctx: {
     webServer: { register: (route: unknown) => () => void }
     effect: (disposer: () => void, label?: string) => unknown
+    get: (name: string) => unknown
+    connection: ConnectionLike
     skills?: SkillRegistryLike
     fs?: FsBackendLike
   },
   config: ManageConfig,
 ): void {
   // 启动观测（验收后可降噪）：装载路径、repoRoot 是否进来了、路由是否注册成功。
-  console.error(`[archify-manage] apply 运行：repoRoot=${JSON.stringify(config?.repoRoot ?? '(缺省)')}`)
-  const repoRoot = typeof config?.repoRoot === 'string' ? config.repoRoot.trim() : ''
+  // 第二期起 repoRoot 只是"手动模式"兜底：带工作区标识的链接按请求查注册表，不在装载时定死。
+  console.error(`[archify-manage] apply 运行：repoRoot=${JSON.stringify(config?.repoRoot ?? '(缺省)')}（手动模式兜底；带 workspace 的链接按请求解析）`)
+  const manualRepoRoot = typeof config?.repoRoot === 'string' ? config.repoRoot.trim() : ''
   const packageRoot = findPackageRoot()
   const webRoot = path.join(packageRoot, 'web')
   const vendorRoot = path.join(packageRoot, 'vendor', 'archify-renderer')
+  const routeContext: RouteContext = {
+    manualRepoRoot,
+    webRoot,
+    vendorRoot,
+    workspaceRegistry: () => ctx.get('workspaceRegistry') as WorkspaceRegistryLike | undefined,
+  }
 
-  // 路由前缀用 archify-manage（作者 2026-09-15 裁定：单用 archify 是别人的产物名，敏感）。
+  // 路由前缀用 archify-manage：archify 是 Archify 渲染器（他人产物）的名字，加 -manage 区分。
   const dispose = ctx.webServer.register({
     kind: 'prefix',
     path: '/archify-manage',
     async handler(req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse) {
       try {
-        await handle(req, res, { repoRoot, webRoot, vendorRoot })
+        // 认证门在一切业务处理之前；拒绝时响应已写完，直接返回。
+        if (!authorizeRequest(ctx.connection, req, res)) return
+        await handle(req, res, routeContext)
       } catch (error) {
         if (!res.headersSent) sendError(res, error)
         else res.end()
       }
     },
   })
-  console.error('[archify-manage] /archify-manage 前缀路由已注册')
+  console.error('[archify-manage] /archify-manage 前缀路由已注册（入口统一认证，fail-closed）')
   // effect 的回调在加载时执行、其返回值才是卸载时的清理函数——返回 dispose 本身，不要当场调用。
   ctx.effect(() => dispose, '流程图管理路由清理')
 
@@ -382,9 +500,59 @@ export function apply(
 }
 
 interface RouteContext {
-  repoRoot: string
+  /** 手动模式兜底目录（配置的 repoRoot）；带 workspace 标识的请求不用它。 */
+  manualRepoRoot: string
   webRoot: string
   vendorRoot: string
+  /** 每次请求时软探测工作区注册表（服务异步激活，装载时点可能缺席，不能点查一次了事）。 */
+  workspaceRegistry: () => WorkspaceRegistryLike | undefined
+}
+
+/**
+ * 认证门：整个 /archify-manage 前缀在所有业务处理
+ * 之前统一过宿主 connection.requestRejection——先 Host/Origin 栅栏（403，防 DNS rebinding
+ * 与跨站请求），再验宿主签名的会话 cookie（401）。判定与宿主自己的 RPC 通道同款
+ * （deepseek-harness packages/client/connection/src/rpc-host.ts 的通道路由）。
+ * fail-closed：connection 缺席、方法形状不对、调用抛错或返回意外值时一律
+ * 拒绝（503），绝不放行。通过返回 true；拒绝时已写完响应，调用方直接返回。
+ * 响应格式：API 路径回稳定 code 的 JSON 错误体，页面路径回中文纯文本。
+ */
+export function authorizeRequest(
+  connection: unknown,
+  req: import('node:http').IncomingMessage,
+  res: import('node:http').ServerResponse,
+): boolean {
+  let rejection: unknown = 503
+  if (connection !== null && typeof connection === 'object'
+    && typeof (connection as ConnectionLike).requestRejection === 'function') {
+    try {
+      rejection = (connection as ConnectionLike).requestRejection(req)
+    } catch {
+      rejection = 503
+    }
+  }
+  if (rejection === undefined) return true
+  // 只认宿主约定的 401/403；其他任何返回值（含字符串、5xx）按服务异常兜底拒绝。
+  const status = rejection === 401 || rejection === 403 ? rejection : 503
+  // API/页面与 handle 的分段口径一致（pathname 第二段是否为 api；不去 query、不解码）。
+  const isApi = (req.url ?? '').split('?')[0].split('/').filter((s) => s !== '')[1] === 'api'
+  if (isApi) {
+    const body = status === 401
+      ? { code: 'unauthorized', error: '未登录或会话已过期：请先打开 DSH 启动地址完成登录，再使用流程图管理。' }
+      : status === 403
+        ? { code: 'forbidden', error: '请求来源不被信任（Host/Origin 校验未通过），已拒绝访问。' }
+        : { code: 'auth-unavailable', error: '认证服务不可用，已拒绝访问（fail-closed，不放行）。' }
+    sendJson(res, status, body)
+    return false
+  }
+  const text = status === 401
+    ? '请先通过 DSH 启动地址登录\n'
+    : status === 403
+      ? '请求来源不被信任（Host/Origin 校验未通过），已拒绝访问。\n'
+      : '认证服务不可用，已拒绝访问。\n'
+  res.writeHead(status, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' })
+  res.end(text)
+  return false
 }
 
 async function handle(
@@ -444,32 +612,83 @@ async function handleApi(
   const api = url.pathname.split('/').filter((s) => s !== '')[2] // /archify-manage/api/<name>
   const q = url.searchParams
 
+  // 工作区清单（第 4 步·入口 B）：侧栏按钮点开后供挑选工作区，不绑定任何业务目录，
+  // 先于仓库绑定解析——repoRoot 没配置也要能列出（免配置正是本轮目标）。
+  if (api === 'workspaces') {
+    const listed = listWorkspaces(ctx.workspaceRegistry())
+    if ('error' in listed) return sendError(res, listed.error)
+    sendJson(res, 200, listed)
+    return
+  }
+
+  // 仓库绑定统一在入口解析（第 2 步）：带 workspace 标识 → 该工作区的目录；不带 → 手动配置。
+  // 之后各接口用 root 读写；inventory/chart 的响应附 repo 块供页面头部展示与辨认。
+  const binding = resolveRepoBinding({
+    workspaceParam: q.get('workspace'),
+    manualRepoRoot: ctx.manualRepoRoot,
+    registry: ctx.workspaceRegistry(),
+  })
+  if ('error' in binding) {
+    if (binding.error.code === 'repo-not-configured') return repoNotConfigured(res)
+    return sendError(res, binding.error)
+  }
+  await assertRepoUsable(binding.root)
+  // 工作区绑定的目录还必须是 Git 仓库顶层：子目录会静默继承父仓的
+  // 标签与历史文件，明确拒绝并说明；手动模式是用户自己填的路径，保持既有行为不拦。
+  if (binding.info.mode === 'workspace') await assertRepoTopLevel(binding.root)
+  const root = binding.root
+
+  try {
+    await dispatchApi(api, req, q, res, { root, repo: binding.info })
+  } catch (error) {
+    if (error instanceof CoreError) {
+      // 出错响应也带工作区信息：空状态/错误页要能显示"工作区：名称（路径）"，
+      // 打开两个空项目时靠它区分标签页。参数拼写类 400 在 dispatchApi 内已自行回复，不走这里。
+      sendJson(res, error.httpStatus, { code: error.code, error: error.message, repo: binding.info })
+      return
+    }
+    throw error
+  }
+}
+
+interface ApiContext {
+  root: string
+  repo: RepoBinding['info']
+}
+
+async function dispatchApi(
+  api: string,
+  req: import('node:http').IncomingMessage,
+  q: URLSearchParams,
+  res: import('node:http').ServerResponse,
+  ctx: ApiContext,
+): Promise<void> {
+  const root = ctx.root
+
   if (api === 'inventory') {
-    if (!ctx.repoRoot) return repoNotConfigured(res)
-    sendJson(res, 200, await readInventory(ctx.repoRoot))
+    sendJson(res, 200, { ...(await readInventory(root)), repo: ctx.repo })
     return
   }
 
   if (api === 'chart') {
-    if (!ctx.repoRoot) return repoNotConfigured(res)
     const business = requireId(res, q.get('business'), 'business')
     if (!business) return
     const chart = requireId(res, q.get('chart'), 'chart')
     if (!chart) return
     const v = q.get('v') || 'current'
-    sendJson(res, 200, await readChartPage(ctx.repoRoot, business, chart, v))
+    const page = await readChartPage(root, business, chart, v)
+    sendJson(res, 200, { ...page, repo: ctx.repo })
     return
   }
 
   if (api === 'evidence') {
-    if (!ctx.repoRoot) return repoNotConfigured(res)
     // POST：正文是第一次响应（/api/chart）里那份 evidence.json 的原文。只按提交来的正文
     // 解析与切片，不读磁盘上的当前文件——两次请求之间文件被保存也不会图与证据错配；
     // 缺失（第一次拿到 null）与读不开（evidenceError）由页面就地说明，本接口不存在回退路径。
     if (req.method === 'POST') {
       const text = await readRequestText(req, res)
       if (text === null) return // 正文超限/超时，已回过 413/408
-      sendJson(res, 200, await loadEvidence(ctx.repoRoot, text))
+      sendJson(res, 200, await loadEvidence(root, text))
       return
     }
     // GET：脚本与既有用法原样保留（自己重读所选版本的文件）
@@ -478,19 +697,18 @@ async function handleApi(
     const chart = requireId(res, q.get('chart'), 'chart')
     if (!chart) return
     const v = q.get('v') || 'current'
-    const page = await readChartPage(ctx.repoRoot, business, chart, v)
+    const page = await readChartPage(root, business, chart, v)
     // evidence.json 本身读不开（如超过大小上限）：如实走文件级错误通道，不误报"没有证据文件"
     if (page.version.evidenceError) {
       sendJson(res, 200, { missing: false, parseError: page.version.evidenceError, refs: [] })
       return
     }
-    const evidence = await loadEvidence(ctx.repoRoot, page.version.files.evidence)
+    const evidence = await loadEvidence(root, page.version.files.evidence)
     sendJson(res, 200, evidence)
     return
   }
 
   if (api === 'snapshots') {
-    if (!ctx.repoRoot) return repoNotConfigured(res)
     if (req.method === 'POST') {
       // 保存：正文 {business, chart, name, stage, note?, head, fingerprint}。head 与 fingerprint
       // 是弹层打开时检查结果里带回来的——钉住用户确认过的那次提交与那份内容，防"看到的是新图、
@@ -509,7 +727,7 @@ async function handleApi(
       if (!business) return
       const chart = requireId(res, typeof fields.chart === 'string' ? fields.chart : null, 'chart')
       if (!chart) return
-      const result = await saveChartSnapshot(ctx.repoRoot, business, chart, body, {
+      const result = await saveChartSnapshot(root, business, chart, body, {
         expectedHead: typeof fields.head === 'string' ? fields.head : '',
         fingerprint: typeof fields.fingerprint === 'string' ? fields.fingerprint : '',
       })
@@ -522,12 +740,11 @@ async function handleApi(
     if (!business) return
     const chart = requireId(res, q.get('chart'), 'chart')
     if (!chart) return
-    sendJson(res, 200, await checkChartCommitted(ctx.repoRoot, business, chart))
+    sendJson(res, 200, await checkChartCommitted(root, business, chart))
     return
   }
 
   if (api === 'doc') {
-    if (!ctx.repoRoot) return repoNotConfigured(res)
     const business = requireId(res, q.get('business'), 'business')
     if (!business) return
     const docPath = q.get('path')
@@ -536,13 +753,13 @@ async function handleApi(
       return
     }
     // 只允许读该业务 business.json 里声明过的文档路径（防任意文件读取）。
-    const inventory = await readInventory(ctx.repoRoot)
+    const inventory = await readInventory(root)
     const entry = inventory.businesses.find((b) => b.id === business)
     if (!entry || !entry.docs.includes(docPath)) {
       sendError(res, new CoreError('not-found', `文档未在业务 ${business} 的 docs 里声明：${docPath}`, 404))
       return
     }
-    const text = await readWorktreeFileOptional(ctx.repoRoot, docPath)
+    const text = await readWorktreeFileOptional(root, docPath)
     if (text === null) {
       sendError(res, new CoreError('not-found', `文档不存在（工作区）：${docPath}`, 404))
       return

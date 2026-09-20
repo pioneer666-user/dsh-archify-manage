@@ -6,7 +6,7 @@
 <title>图阅读 · 流程图管理</title>
 <link rel="stylesheet" href="/archify-manage/assets/style.css">
 <!-- 把渲染器用到的 node: 内置模块映射到随包替身（vendor/archify-renderer/stubs/）。
-     编译路径不该真调用它们；一旦被调用，替身抛错暴露（做法承自 2026-09-13 贯通小样）。 -->
+     编译路径不该真调用它们；一旦被调用，替身抛错暴露。 -->
 <script type="importmap">
 {
   "imports": {
@@ -29,6 +29,8 @@
     <p class="crumbs"><a href="/archify-manage/">项目首页</a> / <a id="bizLink" href="/archify-manage/">业务</a> / <span id="chartName">…</span></p>
     <h1 id="title">图阅读</h1>
     <p class="sub" id="summary"></p>
+    <!-- 第二期第 2 步：工作区模式显示"工作区：名称（路径）"，手动配置模式注明（由 read.js 填充） -->
+    <p class="sub" id="repoLine"></p>
   </div>
   <p id="status" class="status" data-kind="info">正在读取图…</p>
 </header>

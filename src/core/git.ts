@@ -3,6 +3,7 @@
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { readFile, stat } from 'node:fs/promises'
+import { realpathSync } from 'node:fs'
 import path from 'node:path'
 import { CoreError } from './errors.ts'
 
@@ -37,12 +38,78 @@ export async function runGit(repoRoot: string, args: readonly string[]): Promise
   if (err.killed || err.signal === 'SIGTERM') {
     throw new CoreError('git-timeout', `git ${args[0]} 超过 ${GIT_TIMEOUT_MS / 1000} 秒未返回，已中止`, 504)
   }
-  const firstLine = String(err.stderr || err.message || '').split('\n')[0].trim()
+  const rawText = String(err.stderr || err.message || '')
+  // 目录不是 Git 仓库是独立状态（第 2 步定稿四状态之一），不能混进普通 git 失败里
+  if (/not a git repository/i.test(rawText)) {
+    throw new CoreError(
+      'not-a-git-repo',
+      `这个目录不是可用的 Git 仓库：${repoRoot}（历史版本与快照信息存放在 Git 里，需要是 Git 仓库才能管理）`,
+      422,
+    )
+  }
+  const firstLine = rawText.split('\n')[0].trim()
   throw new CoreError('git-failed', `git ${args[0]} 失败：${firstLine || '未知错误'}`)
 }
 
 function isHex40(value: unknown): value is string {
   return typeof value === 'string' && /^[0-9a-f]{40}$/.test(value)
+}
+
+/**
+ * 仓库根可用性预检（第 2 步状态区分）：目录不存在/不是目录/读不了分别给明确错误，
+ * 不让这几种情况糊成后面的"没有流程图资料"。只 stat 一次，不读内容。
+ */
+export async function assertRepoUsable(repoRoot: string): Promise<void> {
+  let info: Awaited<ReturnType<typeof stat>>
+  try {
+    info = await stat(repoRoot)
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException)?.code
+    if (code === 'ENOENT' || code === 'ENOTDIR') {
+      throw new CoreError('repo-unavailable', `目录不存在或已被移动：${repoRoot}`, 404)
+    }
+    throw new CoreError('repo-unavailable', `目录无法读取（${code ?? String(error)}）：${repoRoot}`, 403)
+  }
+  if (!info.isDirectory()) {
+    throw new CoreError('repo-unavailable', `路径不是一个目录：${repoRoot}`, 404)
+  }
+}
+
+/** 两个路径是否指同一个真实位置：先取 realpath 再归一分隔符；Windows 忽略大小写。 */
+function sameRealPath(a: string, b: string): boolean {
+  const norm = (p: string) => {
+    let resolved: string
+    try {
+      resolved = realpathSync(p)
+    } catch {
+      resolved = p
+    }
+    const unified = path.resolve(resolved)
+    return process.platform === 'win32' ? unified.toLowerCase() : unified
+  }
+  return norm(a) === norm(b)
+}
+
+/**
+ * 工作区目录必须是 Git 仓库顶层：目录在某个外层仓库里但
+ * 自己不是顶层时，`git -C` 会向上找到父仓——标签清单与历史文件都会混入父项目
+ * （页头是子项目、历史图来自父项目），且 `git show <commit>:<路径>` 按父仓根解析。
+ * 这里明确拒绝并说明原因，不自动改绑父仓；仓库内多项目支持以后单独设计。
+ * 只用于工作区绑定（自动绑定必须防）；手动模式（用户自己填 repoRoot）不经过本检查。
+ * 非 Git 目录在此同样报 not-a-git-repo（rev-parse 的 stderr 走 runGit 统一映射）。
+ */
+export async function assertRepoTopLevel(repoRoot: string): Promise<void> {
+  const output = (await runGit(repoRoot, ['rev-parse', '--show-toplevel'])).trim()
+  if (!output) {
+    throw new CoreError('not-a-git-repo', `无法确定 ${repoRoot} 的 Git 仓库顶层`, 422)
+  }
+  if (!sameRealPath(output, repoRoot)) {
+    throw new CoreError(
+      'repo-not-top-level',
+      `这个目录不是 Git 仓库的顶层：${repoRoot} 属于外层仓库 ${output}。历史版本会与外层仓库混在一起，管理页不会自动改绑；请把仓库顶层（${output}）登记为工作区。`,
+      422,
+    )
+  }
 }
 
 /**
@@ -91,7 +158,7 @@ export async function resolveCommit(repoRoot: string, commit: string): Promise<s
   try {
     out = await runGit(repoRoot, ['rev-parse', '--verify', `${commit}^{commit}`])
   } catch (error) {
-    // 评审 #3：只有 git 明确拒绝该对象才按"确认不存在"处理（本机 2026-09-15 实测，stderr 首行
+    // 只有 git 明确拒绝该对象才按"确认不存在"处理（实测 stderr 首行
     // 为 "fatal: Needed a single revision"〔对象不存在〕或 "error: … expected commit type …"
     // 〔对象存在但剥不到提交〕两种措辞）；超时、git 不可执行与其余 git 失败继续传递，不误报 not-found。
     const confirmedAbsent =

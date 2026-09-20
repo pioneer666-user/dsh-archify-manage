@@ -24,7 +24,7 @@
 //   复查修复（审查 P1/P2）：两条状态规则搬到 save-result.js（能直接跑断言）——
 //   ① 页面正展示内容的摘要只由"加载并展示内容"写定，刷新版本条不覆盖它；
 //   ② 保存请求的成功只认"状态成功 + 正文完整"，并区分"版本已写上、只是没核完"。
-import { $, el, fetchJson, postJson, renderGuide, setStatus, showError } from './common.js'
+import { $, el, fetchJson, pageTitle, postJson, renderEmptyWorkspaceParam, renderGuide, renderRepoLine, renderRepoState, setStatus, showError, workspaceParamEmpty, wsUrl } from './common.js'
 import { buildDetails, findSection, parseBody, splitInline } from './details.js'
 import { describeSource, displayError, evidenceSummary, formatCodeBlock } from './evidence.js'
 import { stripExternalFonts } from './template.js'
@@ -432,7 +432,7 @@ async function renderEvidencePanel(version) {
 
   let data
   try {
-    data = await postJson('/archify-manage/api/evidence', version.files.evidence)
+    data = await postJson(wsUrl('/archify-manage/api/evidence'), version.files.evidence)
   } catch (error) {
     const warn = el('p', 'ev-warn')
     warn.textContent = `证据读取失败：${error.message}`
@@ -515,20 +515,26 @@ function parseLocation() {
 async function main() {
   const { business, chart, v } = parseLocation()
   if (!business || !chart) return showError('路径应为 /archify-manage/read/<业务id>/<图id>')
+  if (workspaceParamEmpty) return renderEmptyWorkspaceParam()
+  // "业务"面包屑在取数开始前就绑好业务段与工作区标识：
+  // 图不存在、工作区失效或请求失败时它也不再是裸地址，错误页上点它仍回到本工作区的业务页。
+  $('bizLink').href = wsUrl(`/archify-manage/business/${business}`)
   let data
   try {
-    data = await fetchJson(`/archify-manage/api/chart?business=${encodeURIComponent(business)}&chart=${encodeURIComponent(chart)}&v=${encodeURIComponent(v)}`)
+    data = await fetchJson(wsUrl(`/archify-manage/api/chart?business=${encodeURIComponent(business)}&chart=${encodeURIComponent(chart)}&v=${encodeURIComponent(v)}`))
   } catch (error) {
+    if (renderRepoState(error)) return
     return showError(error.message)
   }
   if (data.code === 'repo-not-configured') return renderGuide(data)
 
-  document.title = `${data.chart.name} · 流程图管理`
+  document.title = pageTitle(data.chart.name, data.repo)
   $('bizLink').textContent = data.business.name
-  $('bizLink').href = `/archify-manage/business/${business}`
+  $('bizLink').href = wsUrl(`/archify-manage/business/${business}`)
   $('chartName').textContent = data.chart.name
   $('title').textContent = data.chart.name
   if (data.chart.summary) $('summary').textContent = data.chart.summary
+  renderRepoLine(data.repo)
   let rendered = null
   let failure = null
   if (data.version.workflowError) {
@@ -630,7 +636,7 @@ function renderVersions(data) {
     current.textContent = `当前（工作区）${statusSuffix(data)}`
     current.title = data.compareError || '回到当前工作区内容'
     current.addEventListener('click', () => {
-      location.assign(`/archify-manage/read/${business}/${chart}?v=current`)
+      location.assign(wsUrl(`/archify-manage/read/${business}/${chart}?v=current`))
     })
     versions.appendChild(current)
   }
@@ -640,12 +646,12 @@ function renderVersions(data) {
     button.title = [snapshot.tag, snapshot.meta.note].filter(Boolean).join(' · ')
     if (snapshot.tag === v) button.setAttribute('aria-current', 'true')
     button.addEventListener('click', () => {
-      location.assign(`/archify-manage/read/${business}/${chart}?v=${encodeURIComponent(snapshot.tag)}`)
+      location.assign(wsUrl(`/archify-manage/read/${business}/${chart}?v=${encodeURIComponent(snapshot.tag)}`))
     })
     versions.appendChild(button)
   }
   // 正在看历史快照：登记的保存时间与保存说明上屏（§3.2）；并说明图名与摘要的来处——
-  // 图名/摘要（chart.json）不进快照，历史页上的名字仍取自当前说明文件（§七① 已裁决）
+  // 图名/摘要（chart.json）不进快照，历史页上的名字仍取自当前说明文件
   const meta = $('snapshotMeta')
   if (data.version.kind === 'snapshot') {
     const when = data.version.savedAt ? `保存于 ${data.version.savedAt.slice(0, 16).replace('T', ' ')}` : ''
@@ -703,7 +709,7 @@ async function openSaveDialog() {
 
   let check
   try {
-    check = await fetchJson(`/archify-manage/api/snapshots?business=${encodeURIComponent(business)}&chart=${encodeURIComponent(chart)}`)
+    check = await fetchJson(wsUrl(`/archify-manage/api/snapshots?business=${encodeURIComponent(business)}&chart=${encodeURIComponent(chart)}`))
   } catch (error) {
     check = { failed: error.message } // 请求没回来：交给 saveGate 归为"没能检查"
   }
@@ -758,7 +764,7 @@ async function submitSave() {
   let status = 0
   let body = null
   try {
-    const response = await fetch('/archify-manage/api/snapshots', {
+    const response = await fetch(wsUrl('/archify-manage/api/snapshots'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -809,7 +815,7 @@ async function refreshBar(prefix = '') {
   const { business, chart, v } = pageState
   let data
   try {
-    data = await fetchJson(`/archify-manage/api/chart?business=${encodeURIComponent(business)}&chart=${encodeURIComponent(chart)}&v=${encodeURIComponent(v)}`)
+    data = await fetchJson(wsUrl(`/archify-manage/api/chart?business=${encodeURIComponent(business)}&chart=${encodeURIComponent(chart)}&v=${encodeURIComponent(v)}`))
   } catch {
     return false
   }

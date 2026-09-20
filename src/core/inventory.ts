@@ -1,7 +1,7 @@
 // 约定树清单：只读 docs/archify/ 子树 + refs/tags/archify/ 前缀（D1：不整仓扫描）。
 // 目录名即稳定编号；说明文件缺失/不合法的业务或图标记 descriptorError 并跳过展开，不影响其余（§3.5）。
 import { readdir } from 'node:fs/promises'
-import { worktreeFileExists } from './git.ts'
+import { worktreeFileExists, readWorktreeFileOptional } from './git.ts'
 import { CoreError } from './errors.ts'
 import { listArchifyTags, snapshotsForChart, type RawTagRecord } from './snapshots.ts'
 import { compareCurrentWithLatest, chartIdOwners } from './chart.ts'
@@ -19,13 +19,21 @@ import {
 
 async function readProjectInfo(repoRoot: string): Promise<ProjectInfo> {
   const relPath = `${CONVENTION_ROOT}/project.json`
-  const { data, error } = await readDescriptor<ProjectInfo>(repoRoot, relPath)
-  if (!data) {
+  // 缺文件与文件坏掉是两个状态（第 2 步定稿），不能用同一个错误码糊过去：
+  // 缺＝还没有流程图资料（404，页面给空状态）；坏＝资料格式错误（500，页面原样报问题）。
+  const text = await readWorktreeFileOptional(repoRoot, relPath)
+  if (text === null) {
     throw new CoreError(
       'no-convention-root',
-      error ?? `未找到约定根：${relPath} 不存在。请在业务项目仓库的 ${CONVENTION_ROOT}/ 下组织 project.json`,
+      `这里还没有流程图资料：未找到 ${relPath}。不会自动创建或改动这个目录里的任何文件。`,
       404,
     )
+  }
+  let data: ProjectInfo
+  try {
+    data = JSON.parse(text) as ProjectInfo
+  } catch (error) {
+    throw new CoreError('bad-inventory', `${relPath} 不是合法 JSON：${(error as Error).message}`, 500)
   }
   if (!isPlainObject(data) || data.schema !== SCHEMA.project) {
     throw new CoreError('bad-inventory', `${relPath} 的 schema 必须是 ${SCHEMA.project}`, 500)

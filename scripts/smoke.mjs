@@ -1,10 +1,10 @@
-// src/core 行为冒烟（评审 #5 入库，2026-09-15）：自包含、可重跑。
+// src/core 行为冒烟：自包含、可重跑。
 // 流程：① 在 local-artifacts/smoke-runs/<时间戳>/ 下生成全新示例仓（sample/generate.mjs）
 //      ② 对该仓跑清单 / 阅读页 / 证据 / 错误语义四组断言 ③ 回执写入同目录 receipt.txt。
 // 用法（在 archify-manager/ 下）：node scripts/smoke.mjs
 // 说明：直接 import src/core 的 .ts（本包 "type":"module"，Node 原生剥类型可加载；
 //      与正式包无关——正式包走 esbuild 产物）。仓库每次全新生成，git 对象哈希含时间戳，
-//      但断言只依赖内容与结构，与旧 local-artifacts/2026-09-14 目录里的脚本行为一致。
+//      但断言只依赖内容与结构。
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'

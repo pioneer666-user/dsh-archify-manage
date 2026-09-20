@@ -1,6 +1,6 @@
 {
   "name": "@specdev/dsh-archify-manage",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "private": true,
   "license": "MIT",
   "type": "module",
@@ -18,7 +18,7 @@
     "skills",
     "client.js",
     "cordis.patch.yml",
-    "README.en.md"
+    "README.zh.md"
   ],
   "dsh": {
     "bundle": {
