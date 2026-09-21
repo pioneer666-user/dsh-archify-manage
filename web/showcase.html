@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>业务展示 · 流程图管理</title>
+<script src="/archify-manage/assets/theme.js"></script>
+<link rel="stylesheet" href="/archify-manage/assets/style.css">
+</head>
+<body class="showcase-page">
+<a class="skip-link" href="#main">跳到主要内容</a>
+<header class="app-bar">
+  <a class="brand" data-home-link href="/archify-manage/" aria-label="SpecDev 项目首页"><span class="brand-mark" aria-hidden="true">S<span></span></span><span>SpecDev<span class="brand-caption">流程图工作台</span></span></a>
+  <div class="theme-switch" role="group" aria-label="页面主题"><button type="button" data-theme-choice="light" aria-pressed="false"><span aria-hidden="true">☼</span> 浅色</button><button type="button" data-theme-choice="dark" aria-pressed="true"><span aria-hidden="true">☾</span> 深色</button></div>
+</header>
+<div class="page-content">
+<header class="top">
+  <div>
+    <p class="crumbs"><a href="/archify-manage/">项目首页</a> / <span>业务展示</span></p>
+    <h1 id="title">业务展示</h1>
+    <p class="sub" id="intro"></p>
+    <!-- 工作区行与三页同款：默认收起，展开见全路径（common.js renderRepoLine 填充）。 -->
+    <details class="workspace-details" id="workspaceDetails" hidden><summary id="workspaceLabel">工作区</summary><p id="repoLine"></p></details>
+  </div>
+  <p id="status" class="status" data-kind="info">正在读取项目…</p>
+</header>
+<p id="errorBox" class="error" hidden></p>
+<section id="guideBox" class="guide" hidden></section>
+<!-- 格式切换固定吸顶：进页默认列表，选择记入本地存储。 -->
+<nav id="viewSwitch" class="view-switch" role="group" aria-label="展示格式" hidden>
+  <button type="button" data-view="list" aria-pressed="true">列表</button>
+  <button type="button" data-view="star" aria-pressed="false">星图</button>
+  <button type="button" data-view="sphere" aria-pressed="false">球阵</button>
+  <button type="button" id="sphereStart" class="sphere-start" hidden>开始旋转</button>
+</nav>
+<main id="main">
+  <section id="viewList" class="showcase-view cards home-cards" aria-label="列表视图"></section>
+  <section id="viewStar" class="showcase-view" aria-label="星图视图" hidden>
+    <div id="starBox" class="star-box"></div>
+    <p class="view-note">星图：每个业务一颗主星，次星是它登记的流程图；点星进对应页面。位置按业务 id 稳定分配，刷新不变。</p>
+  </section>
+  <section id="viewSphere" class="showcase-view" aria-label="球阵视图" hidden>
+    <div id="sphereBox" class="sphere-box"></div>
+    <p class="view-note">球阵：业务与流程图分布在球面上，大球是业务、小球是图；点球进对应页面。切走即停渲染。</p>
+  </section>
+</main>
+</div>
+<script type="module" src="/archify-manage/assets/showcase.js"></script>
+</body>
+</html>

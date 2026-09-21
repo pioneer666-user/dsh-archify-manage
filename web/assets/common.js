@@ -18,6 +18,9 @@ export function wsUrl(url) {
 // 面包屑里的"项目首页"是 HTML 里写死的裸地址，这里统一补上标识（首页自己没有面包屑，查不到就不动）。
 // 阅读页的"业务"链接有业务段、且必须在取数前绑定（失败页也要带标识），由 read.js 自己设置。
 document.querySelector('.crumbs a[href="/archify-manage/"]')?.setAttribute('href', wsUrl('/archify-manage/'))
+document.querySelectorAll('[data-home-link]').forEach((link) => link.setAttribute('href', wsUrl('/archify-manage/')))
+// 站内其它裸地址入口（如首页进展示页的按钮）：写死 href 作无标识兜底，这里按本页标识补全。
+document.querySelectorAll('[data-ws-link]').forEach((link) => link.setAttribute('href', wsUrl(link.getAttribute('data-ws-link'))))
 
 export function setStatus(text, kind = 'info') {
   const n = $('status')
@@ -109,6 +112,86 @@ export function el(tag, className) {
   const n = document.createElement(tag)
   if (className) n.className = className
   return n
+}
+
+// ── 状态汇总（首页业务卡小行与业务页汇总行共用）─────────────────────
+
+/** 汇总顺序与文案：要处理的靠前；"异常"涵盖编号冲突与说明文件问题。 */
+export const STATUS_SUMMARY_ORDER = [
+  ['changed', '已改动'],
+  ['invalid', '异常'],
+  ['compare-failed', '无法比较'],
+  ['no-snapshot', '无快照'],
+  ['identical', '一致'],
+]
+
+/** 图的状态归类：编号冲突 / 说明文件问题算"异常"，其余用服务端算好的四状态。 */
+export function chartStatusKind(chart) {
+  if (chart.idConflict || chart.descriptorError) return 'invalid'
+  return chart.currentStatus
+}
+
+/** 按状态清点图列表；只清点已知状态，未知值不伪造计数。 */
+export function countChartStatuses(charts) {
+  const counts = {}
+  for (const chart of charts) {
+    const kind = chartStatusKind(chart)
+    if (STATUS_SUMMARY_ORDER.some(([value]) => value === kind)) counts[kind] = (counts[kind] || 0) + 1
+  }
+  return counts
+}
+
+/** 只读状态小行：只列非零状态；没有可展示的状态返回 null（不放空行占位）。 */
+export function statusChips(charts) {
+  const counts = countChartStatuses(charts)
+  const present = STATUS_SUMMARY_ORDER.filter(([kind]) => counts[kind])
+  if (present.length === 0) return null
+  const row = el('div', 'chip-row')
+  for (const [kind, label] of present) {
+    const chip = el('span', 'badge')
+    chip.dataset.kind = kind
+    chip.textContent = `${label} ${counts[kind]}`
+    row.append(chip)
+  }
+  return row
+}
+
+/** 业务卡（首页与展示页列表视图共用）：图标、序号、名称、介绍、状态小行、
+ *  底部图数与进入动作。说明文件读不开的业务不清点，异常说明如实显示。 */
+export function businessCard(business, index) {
+  const card = el('a', 'card business-card')
+  card.href = wsUrl(`/archify-manage/business/${encodeURIComponent(business.id)}`)
+  const top = el('div', 'business-card-top')
+  const icon = el('span', 'business-icon')
+  icon.setAttribute('aria-hidden', 'true')
+  icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/><path d="M10 6.5h5.5a2 2 0 0 1 2 2V14M6.5 10v5.5a2 2 0 0 0 2 2H14"/></svg>'
+  const number = el('span', 'business-number')
+  number.textContent = String(index + 1).padStart(2, '0')
+  top.append(icon, number)
+  const h = el('h3')
+  h.textContent = business.name
+  const p = el('p', 'business-intro')
+  p.textContent = business.intro || '进入业务，查看流程图与相关说明。'
+  card.append(top, h, p)
+  if (!business.descriptorError) {
+    const chips = statusChips(business.charts)
+    if (chips) card.append(chips)
+  }
+  const footer = el('div', 'business-card-footer')
+  const meta = el('span')
+  if (business.descriptorError) {
+    const warning = el('p', 'business-warning')
+    warning.textContent = `说明文件问题：${business.descriptorError}`
+    card.append(warning)
+    meta.textContent = '查看异常说明'
+  } else {
+    meta.textContent = `${business.charts.length} 张流程图`
+  }
+  const action = el('span', 'business-enter')
+  action.textContent = '进入业务 ↗'
+  footer.append(meta, action)
+  card.append(footer)
+  return card
 }
 
 /** 当前状态徽标文案（§3.2：一致 / 已改动 / 无快照 / 无法比较，服务端算好传下来）。 */
@@ -211,4 +294,9 @@ export function renderRepoLine(repo) {
   const line = $('repoLine')
   if (!line || !repo) return
   line.textContent = repoLineText(repo)
+  const details = $('workspaceDetails')
+  if (details) {
+    details.hidden = false
+    $('workspaceLabel').textContent = repo.mode === 'workspace' ? `工作区 · ${repo.title}` : '手动配置的项目目录'
+  }
 }

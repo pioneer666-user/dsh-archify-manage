@@ -4,26 +4,35 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>业务 · 流程图管理</title>
+<script src="/archify-manage/assets/theme.js"></script>
 <link rel="stylesheet" href="/archify-manage/assets/style.css">
 </head>
-<body>
+<body class="business-page">
+<header class="app-bar">
+  <a class="brand" data-home-link href="/archify-manage/" aria-label="SpecDev 项目首页"><span class="brand-mark" aria-hidden="true">S<span></span></span><span>SpecDev<span class="brand-caption">流程图工作台</span></span></a>
+  <div class="theme-switch" role="group" aria-label="页面主题"><button type="button" data-theme-choice="light" aria-pressed="false"><span aria-hidden="true">☼</span> 浅色</button><button type="button" data-theme-choice="dark" aria-pressed="true"><span aria-hidden="true">☾</span> 深色</button></div>
+</header>
+<div class="page-content">
 <header class="top">
   <div>
     <p class="crumbs"><a href="/archify-manage/">项目首页</a> / <span id="bizName">…</span></p>
     <h1 id="title">业务</h1>
     <p class="sub" id="intro"></p>
-    <!-- 第二期第 2 步：工作区模式显示"工作区：名称（路径）"，手动配置模式注明（由 business.js 填充） -->
-    <p class="sub" id="repoLine"></p>
+    <!-- 第二期第 2 步：工作区模式显示"工作区：名称（路径）"，手动配置模式注明（由 business.js 填充）。
+         长路径不再直接铺开行内断词，与首页一样折进可展开块（common.js renderRepoLine 填充）。 -->
+    <details class="workspace-details" id="workspaceDetails" hidden><summary id="workspaceLabel">工作区</summary><p id="repoLine"></p></details>
   </div>
   <p id="status" class="status" data-kind="info">正在读取业务…</p>
 </header>
 <p id="errorBox" class="error" hidden></p>
+<div id="chartSummary" class="chart-summary chip-row" hidden></div>
 <section id="guideBox" class="guide" hidden></section>
 <section id="docs" class="panel" hidden>
   <h2>业务文档</h2>
   <ul id="docList" class="doc-list"></ul>
 </section>
 <main id="root" class="cards"></main>
+</div>
 <script type="module" src="/archify-manage/assets/business.js"></script>
 </body>
 </html>

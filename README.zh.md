@@ -1,127 +1,236 @@
-# @specdev/dsh-archify-manage · DSH 流程图管理插件
+# SpecDev · DSH 流程图工作台
 
 简体中文 ｜ [English](README.md)
 
-DSH（DeepSeek Harness）插件：浏览用 Archify 生成的业务流程图目录，按 Git 附注标签阅读
-历史版本，并把当前已提交的图内容登记成一个有名称的版本（保存版本）。唯一的写动作就是
-给提交挂一个附注标签——**不改动业务项目的文件、分支与提交**。
+## 下载与安装
 
-> 这个插件来自我对 AI 开发流程的探索：方法论与插件在同一个研究里互相推动，本仓库是
-> 整理后开源的插件源码。
+前置：已安装 DSH（DeepSeek Harness），终端可用 `dsh`、`pnpm` 和 `git`。复制执行这一条命令，直接从 GitHub Release 下载并安装 **0.1.11**：
 
-## 功能
+```sh
+dsh plugin --profile web add https://github.com/pioneer666-user/dsh-archify-manage/releases/download/v0.1.11/specdev-dsh-archify-manage-0.1.11.tgz
+```
 
-- **零配置工作区入口**：装好即用，不需要配置项目目录。DSH 侧栏的「流程图管理」按钮
-  就地展开工作区清单；点哪个工作区，就在新标签打开哪个工作区的管理页（原 DSH 会话
-  保留）。链接用 `?workspace=<id>` 绑定该工作区，页面读写的就是它里面的
-  `docs/archify/`。
-- **三页浏览**：项目首页（项目与业务列表）→ 业务页（介绍、业务文档入口、图列表——每图
-  带快照数与当前状态徽标：一致／已改动／无快照）→ 阅读页（版本条、现场渲染的交互图、
-  说明文档分块、源码证据）。
-- **历史版本阅读**：保存的版本即 Git 附注标签；阅读页按版本条切换，图、说明与源码证据
-  与所选版本同源（代码片段取自引用写定的固定提交）。
-- **节点详情**：图上点节点即可读该步骤在当前所选版本里的那一节说明（没写、没文档、
-  读不开、未分节都如实说明，不编造）。
-- **保存版本（唯一写操作）**：在"当前（工作区）"视图上把已提交的图内容登记成一个有
-  名称的版本；还有没提交的改动会被拦下并说明是哪个文件，页面上看到的内容与将要保存的
-  不一致会要求先刷新，同一份内容同一阶段重复保存不会多存。
-- **随 DSH 登录统一认证**：管理页与接口复用 DSH 的登录会话与来源校验；未登录或来源
-  不受信任的请求会被拒绝（提示先通过 DSH 启动地址登录），认证服务不可用时一律拒绝
-  （fail-closed）。
-- **随包技能 archify-maker**：插件装载时注册到 DSH，安装后直接可用；提供"设计 → 实现 →
-  证据 → 修改"四段流程指引与 workflow 图校验命令（内容见包内 `skills/archify-maker/`）。
+安装完成后重启 DSH，在侧栏点击 **「流程图管理」→ 选择工作区**，即可在新标签打开项目。无需手填项目路径，沿用 DSH 的登录会话。
 
-## 安装
+[下载 0.1.11 安装包](https://github.com/pioneer666-user/dsh-archify-manage/releases/download/v0.1.11/specdev-dsh-archify-manage-0.1.11.tgz) · [查看 Releases](https://github.com/pioneer666-user/dsh-archify-manage/releases)
 
-前置：已安装 DSH（DeepSeek Harness）。本插件在 DSH 0.1.6-alpha.2 的 web profile 上
-做过从安装到移除的全链路验收（含工作区入口与统一认证）。宿主没有工作区注册表时，
-管理页自动落回手动 `repoRoot` 模式（见第 4 步）。
+> 命令对应 `v0.1.11` Release 中的同名安装包，需该附件发布后可用。已验证的宿主环境为 **Windows · DSH 0.1.6-alpha.2 · web profile**。
 
-1. 从 GitHub Release 下载 `specdev-dsh-archify-manage-<版本>.tgz`；
-2. 安装：`dsh plugin --profile web add <tgz 路径>`（`--profile` 指定装进哪个 profile，
-   **必填**；**路径不能含空格**——DSH 侧限制，含空格会报 ENOENT，先拷到无空格目录再
-   add）；
-3. 重启 DSH。不需要任何配置：侧栏点「流程图管理」展开工作区清单，点一个工作区，
-   新标签打开该工作区的管理页，直接可用（沿用 DSH 登录会话）；
-4. （兼容：手动指定项目目录）宿主没有工作区注册表、或想固定指向某个仓库时，仍可手动
-   配置 `repoRoot`——插件默认不指向任何仓库，未配置且链接里也没有工作区标识时，页面
-   会给出可复制的配置示例。配置层优先级（后者覆盖前者）：组合包层 → profile 自己的
-   `cordis.patch.yml` → home 级 → `--patch` overlay。profile 层示例（**按 id 覆盖写法，
-   勿用 `- insert:`**——insert 会新增重复条目导致启动失败）：
-   ```yaml
-   - id: specdev-archify-manage
-     config:
-       repoRoot: 'D:/你的/业务项目仓库'
-   ```
+<details>
+<summary>已经装过旧版？升级到 0.1.11</summary>
 
-## 业务项目的组织约定
+关闭正在运行的 DSH，依次执行，再重新启动：
 
-插件按固定目录约定读取业务项目：
+```sh
+dsh plugin --profile web remove @specdev/dsh-archify-manage
+dsh plugin --profile web add https://github.com/pioneer666-user/dsh-archify-manage/releases/download/v0.1.11/specdev-dsh-archify-manage-0.1.11.tgz
+```
+
+使用先移除、再安装的方式确保替换旧文件。项目中的图文件与 Git 快照保留在业务仓库里。
+
+</details>
+
+## 从一张图，进入项目
+
+接手一个项目时，我们通常想先弄清楚：它有哪些业务，一条流程怎么走，某一步为什么这样处理，以及实现到底在哪里。
+
+**SpecDev 把业务目录、交互式流程图、节点说明和源码证据放到同一条阅读路径里：**
+
+**项目 → 业务 → 流程 → 节点 → 源码**
+
+它是一个 DSH 插件（包名 `@specdev/dsh-archify-manage`），使用 Archify 渲染 workflow 图。你可以先了解全貌，再沿着感兴趣的节点看说明和实现；也可以切回保存过的设计版或实现版，回看当时的图与依据。
+
+这个插件来自对 AI 辅助开发流程的探索：让需求讨论、实现和核对拥有一个方便打开、能追溯出处的阅读入口。本仓库是整理后开源的插件源码。
+
+## 界面预览
+
+以下截图来自虚构的校园活动示例项目。示例特意包含异常数据，用来展示编号冲突、缺少资料等情况的提示。
+
+### 项目首页：先看全貌，再进入业务
+
+项目介绍、业务数量与流程图数量集中呈现；从业务入口继续浏览。管理页面支持浅色与深色主题，并记住你的选择。
+
+![项目首页：项目概览、统计与业务入口](web/assets/screenshots/project-home.png)
+
+### 业务页：把说明、图和状态放在一起
+
+业务介绍、文档入口与流程图列表按业务归组。每张图都能看到快照数量与当前状态，异常会直接标出。
+
+![业务页：业务文档、流程图卡片与状态提示](web/assets/screenshots/business.png)
+
+### 看图：沿着流程阅读，随时切换版本
+
+交互式流程图与版本条放在同一页。可以查看当前工作区，也可以阅读保存过的设计版或实现版。
+
+![流程图阅读页：版本条与交互式流程图](web/assets/screenshots/workflow.png)
+
+### 节点详情：左边源码，右边说明
+
+**双击节点**即可打开详情，也可以选中节点后点击图外的 **「查看详情」**。源码与文案逐组对齐；关闭详情后，继续看原来的图。完整文档和未关联引用收在 **「全部阅读资料」** 中。
+
+![节点详情：固定提交的源码与业务说明左右对照](web/assets/screenshots/node-detail.png)
+
+## 还能做什么
+
+| 能力 | 使用方式 |
+|---|---|
+| 多工作区入口 | 从 DSH 侧栏选择工作区，各页面始终绑定所选项目 |
+| 业务展示 | 首页进入「业务展示」，可在列表、星图、球阵三种格式间切换 |
+| 历史版本 | 按版本条切换，读取该版的流程图、节点说明与证据清单 |
+| 保存版本 | 为已提交的图内容登记名称、阶段和说明，便于之后回看 |
+| 随包 AI 技能 | `archify-maker` 提供设计、实现、证据核对与后续修改指引，插件加载时自动注册到 DSH |
+
+**管理页面唯一的写操作是「保存版本」：给 Git 提交添加附注标签，不改动业务项目的文件、分支或提交。** 随包技能用于指导 AI 制作或修改项目文件，由你授权其工作范围。
+
+## 第一次使用
+
+1. **选好项目。** 在 DSH 中添加或选择业务仓库工作区；工作区目录应为 Git 仓库顶层。
+2. **准备图。** 已有 `docs/archify/` 数据的项目可以直接浏览；没有数据时，可让 DSH 中的 AI 使用随包技能 `archify-maker`，根据你的业务需求制作图与说明。
+3. **打开阅读。** 侧栏「流程图管理」→ 工作区 → 业务 → 图。双击节点，看源码与说明的对应关系。
+4. **保留一个版本。** 确认内容并提交 Git 后，在图的「当前（工作区）」视图点击「保存版本」。之后可在版本条中切换阅读。
+
+“零配置”指无需手动配置插件的项目路径；插件读取项目中已有的图文件，安装本身不会自动把任意代码仓库转换成流程图。
+
+<details>
+<summary>还没有图：可以怎样向 AI 提出需求？</summary>
+
+在目标项目的 DSH 会话里说明要处理哪一项业务，例如：
+
+> 请使用 archify-maker，为当前项目的活动报名业务制作业务说明、workflow 图和节点详情，并按 docs/archify 的目录约定登记。先与我确认业务规则；尚未实现的部分标成设计，源码证据没有核实就留空。
+
+技能按阶段组织工作，区分设计、实现事实与未核实内容；图仍需由你查看和验收。技能说明见 [archify-maker](skills/archify-maker/SKILL.md)。
+
+如果只想查看虚构示例，克隆本仓库后可在仓库根目录运行（需要 Node.js 与 Git，目标目录必须不存在）：
+
+```sh
+node sample/generate.mjs ./local-artifacts/demo-project
+```
+
+再把生成的 `local-artifacts/demo-project` 作为 DSH 工作区打开。示例包含正常与异常样本，说明见 [示例项目](sample/README.md)。
+
+</details>
+
+## 使用说明
+
+<details>
+<summary>图与说明存在哪里？</summary>
+
+所有阅读数据都在你的业务仓库中：
 
 ```text
 docs/archify/
-  project.json                        # 项目（schema: specdev-archify/project/1）
-  <业务id>/business.json              # 业务（id / name / intro / docs）
-  <业务id>/<图id>/chart.json          # 图（id / name / summary；图编号全项目唯一）
-  <业务id>/<图id>/workflow.json       # 图源（Archify workflow JSON）
-  <业务id>/<图id>/details.md          # 节点详情
-  <业务id>/<图id>/evidence.json       # 源码证据引用
+  project.json                         # 项目名与介绍
+  <业务id>/business.json               # 业务介绍与文档入口
+  <业务id>/<图id>/chart.json           # 图名称与摘要
+  <业务id>/<图id>/workflow.json        # Archify workflow 图源
+  <业务id>/<图id>/details.md           # 按节点分节的说明
+  <业务id>/<图id>/evidence.json        # 固定提交的源码引用
 ```
 
-工作区模式下，工作区目录必须是 Git 仓库的**顶层**（子目录会被明确拒绝并说明，不会
-悄悄改绑父仓库）；手动 `repoRoot` 模式沿用旧口径，不另加限制。
+业务 ID、图 ID 与目录名一致；图 ID 在整个项目中必须唯一。没有节点说明或源码证据也可以看图，缺失或无效的资料会明确提示。
 
-保存的版本 = 附注标签 `archify/<图编号>/<版本标识>`；读取时做五项校验（是附注标签、
-剥壳后指向提交、标签 message 为合法 JSON 且必填字段齐全、图编号与标签名一致、目录以
-约定根开头），不合规的计入"无效标签"并忽略，不当作快照。
+详细字段与示例见 [文件组织约定](skills/archify-maker/references/project-contract.md)。
 
-## 页面与 API
+</details>
 
-页面与接口同源，且要求已登录 DSH（未登录访问会被拒绝并提示先通过 DSH 启动地址
-登录）。从工作区清单进入的链接自动带 `?workspace=<id>`；没有标识时读取手动配置的
-`repoRoot`。
+<details>
+<summary>怎样让节点说明与源码对应？</summary>
 
-| 路径 | 内容 |
-|---|---|
-| `/archify-manage/` | 项目首页：项目名 + 业务列表 |
-| `/archify-manage/business/<业务id>` | 业务页：介绍、业务文档入口、图列表（快照数与状态徽标；编号冲突与说明文件问题会明确标出） |
-| `/archify-manage/read/<业务id>/<图id>?v=current\|<标签名>` | 阅读页：版本条 + 现场渲染的交互图 + 说明文档分块 + 源码证据；图上点节点读详情；"当前（工作区）"视图可保存版本 |
+在 `details.md` 中用二级标题写节点 ID，在正文中明确标注证据编号。例如：
 
-API（同源）：`GET /api/workspaces` 列出 DSH 工作区（侧栏清单用）；其余为只读
-`GET /api/inventory`、`/api/chart`、`/api/doc`、`GET /api/evidence`（留给脚本用）；
-`POST /api/evidence` 接收页面正文的 evidence 原文做切片，防两次请求之间文件被保存造成
-图与证据错配；`/api/snapshots` 是**唯一的写操作**——`GET` 为保存前检查（当前提交号、
-能不能存、逐文件问题、内容摘要），`POST` 存一版（`head`/`fingerprint` 钉住确认过的
-提交与内容，后台有新提交或内容对不上都会拒绝并要求刷新）。
+```markdown
+## check_eligibility
+### 检查报名资格
+【实现】未验证账户与重复报名都会被拒绝。（证据 eligibility-core）
+```
 
-## 从源码构建
+`eligibility-core` 精确对应同一版本 `evidence.json` 中的 `refs[].id`。每条源码引用记录仓库内文件路径、40 位完整提交号和起止行号，阅读时取该提交里的代码。
 
-Node ≥ 22。在本目录：
+- 三级标题用于分组；未用三级标题时按段落分组，顺序跟随文案。
+- 一组可以引用多个证据编号，用顿号分隔；代码围栏内的示例不参与配对。
+- 未声明关联的段落不会猜测源码；缺失、重复或无效的引用会说明原因。
+- 详情不是完整 Markdown 渲染器；支持常用的标题、段落、列表、加粗与代码展示。
+
+节点详情展示的是**已声明的对应关系**；有源码出处，不代表业务规则已经被证明正确。
+
+</details>
+
+<details>
+<summary>保存版本会保存什么？</summary>
+
+保存版本会创建 Git 附注标签 `archify/<图编号>/<版本标识>`。随版本读取的文件是 `workflow.json`、`details.md` 和 `evidence.json`；源码片段始终取自各条证据引用固定的提交。
+
+保存前会检查这三个图文件是否与当前提交一致。相关文件尚未提交、页面内容过期或提交已变化时，会说明原因并阻止保存；同一份内容、同一阶段重复保存，会返回已有版本。
+
+图名称与摘要、业务介绍、业务文档入口和业务文档内容仍读取当前工作区。核对历史业务文档时，需要按快照对应的提交另行查看 Git。
+
+不合规的快照标签会计入无效标签并忽略。当前不提供删除版本、版本改名、跨仓库证据或推送远端功能。
+
+</details>
+
+<details>
+<summary>打不开页面，或者需要手动指定仓库？</summary>
+
+先通过 DSH 启动时给出的地址登录，再从侧栏进入。页面与 API 沿用 DSH 登录会话和来源校验；认证不可用时会拒绝访问。
+
+工作区模式要求目录是 Git 仓库顶层；子目录、失效的工作区标识或不可用的工作区服务都会明确报错。
+
+宿主没有工作区注册表，或需要固定指向一个仓库时，可在 web profile 的 `cordis.patch.yml` 中按 ID 覆盖配置：
+
+```yaml
+- id: specdev-archify-manage
+  config:
+    repoRoot: 'D:/你的/业务项目仓库'
+```
+
+不要使用 `- insert:`，它会新增重复条目。配置后重启，访问同一个 DSH 地址下的 `/archify-manage/`，不携带 `workspace` 参数；工作区清单不可用或为空时，侧栏也会显示「直接打开管理页」入口。配置优先级为：组合包 → profile → home → `--patch` overlay，后者覆盖前者。
+
+如果手动下载 `.tgz` 安装，文件所在路径不能含空格（DSH 侧限制）；上面的 Release 地址安装方式无需处理本地路径。
+
+</details>
+
+## 开发参考
+
+<details>
+<summary>从源码构建</summary>
+
+Node.js ≥ 22。在插件仓库根目录运行：
 
 ```sh
-npm install                    # 安装开发依赖（esbuild / typescript）
-npm run typecheck              # 类型检查（tsc --noEmit）
-npm run build                  # 构建 dist/（esbuild 打包）
-npm pack --pack-destination .  # 产出 specdev-dsh-archify-manage-<版本>.tgz
+npm install
+npm run typecheck
+npm run build
+npm pack --pack-destination .
 ```
 
-（可选）行为冒烟与接口层验收：`node scripts/smoke.mjs`、`node scripts/check-save.mjs`
-——自包含，自动生成临时示例仓，不碰你的业务项目。
+产出 `specdev-dsh-archify-manage-0.1.11.tgz`。渲染器和校验工具已随源码提供，不需要另行克隆 Archify。
 
-## 能力边界（如实）
+需要行为检查时，按需依次运行 `node scripts/smoke.mjs` 与 `node scripts/check-save.mjs`；它们创建临时示例仓，不操作你的业务项目。
 
-- 唯一写操作是保存版本（挂附注标签）；**删版本、版本改名、跨仓库、推送远端不在范围**。
-- 已验证环境：DSH 0.1.6-alpha.2（web profile；工作区入口与统一认证全链路验收）、
-  Windows、单机。手动 `repoRoot` 模式由随包接口层脚本 `scripts/check-save.mjs` 覆盖
-  （自建假宿主，与宿主版本无关）。未做真实 AI 会话的端到端验收（技能触发 → 按技能读
-  参考 → 产出），也未在另一台机器上验证。
-- 节点级增强阅读目前是第 1 步（选中同步 + 节点详情阅读）；节点关联跳转、节点详情与
-  源码对照过滤、页面内问 DSH 属后续版本。
-- 渲染与校验依赖随包分发的 Archify 渲染器副本（MIT），见 `vendor/archify-renderer/`；
-  副本升级由维护者进行。
+</details>
 
-## 许可证
+<details>
+<summary>页面与 API</summary>
 
-MIT（许可证文件见仓库根 `LICENSE`）。随包分发的 Archify 渲染器副本同为 MIT，其许可证与
-第三方声明随副本携带于 `vendor/archify-renderer/archify/`（`LICENSE`、
-`THIRD_PARTY_NOTICES.md`）。
+以下路径都以 `/archify-manage` 为前缀。工作区模式自动携带 `?workspace=<id>`，页面与 API 均要求已登录 DSH。
+
+| 路径 | 用途 |
+|---|---|
+| `/` | 项目首页 |
+| `/showcase` | 项目级业务展示：列表、星图、球阵 |
+| `/business/<业务id>` | 业务介绍、文档与图列表 |
+| `/read/<业务id>/<图id>` | 图与节点详情；`v=current` 或标签名选择版本 |
+| `GET /api/workspaces` | DSH 工作区清单 |
+| `GET /api/inventory`、`/api/chart`、`/api/doc` | 目录、图与业务文档 |
+| `GET /api/evidence` | 按引用读取源码，供脚本使用 |
+| `POST /api/evidence` | 用页面已加载的证据清单读取源码，避免与图版本错配；不写仓库 |
+| `GET /api/snapshots` | 保存前检查 |
+| `POST /api/snapshots` | 保存版本；使用 `head` 与 `fingerprint` 校验提交和内容 |
+
+</details>
+
+已验证范围为 Windows 单机与 DSH 0.1.6-alpha.2 的 web profile。尚未完成其他机器、其他宿主版本，以及真实 DSH AI 会话中从技能触发到生成产物的完整端到端验收。
+
+## 许可证与致谢
+
+本项目采用 [MIT 许可证](LICENSE)。感谢 DSH 提供插件宿主，Archify 提供流程图渲染与校验能力。随包 Archify 副本同为 MIT，其 [许可证](vendor/archify-renderer/archify/LICENSE) 与 [第三方声明](vendor/archify-renderer/archify/THIRD_PARTY_NOTICES.md) 随源码保留。

@@ -1,8 +1,5 @@
-// 图与外层的只读连接（E·选中同步）：外层"看着"图里的原生选中标记，不插手图的交互。
-//
-// 读的是模板自己写上的 data-focus-selected（空值属性）：图里鼠标点击、键盘回车、
-// 搜索聚焦、点空白取消，对这里都是同一件事——标记变了。所以这里**不判断点击**、
-// **不在图内加任何事件监听**，图照旧原样运转（vendor 一行不改）。
+// 图与外层的连接：观察原生选中标记，并集中适配节点双击详情。
+// 不修改 vendor，不拦截单击、键盘与拖动。上游升级时复验此适配层。
 //
 // 页面切版本是整页跳转，图与观察随页面一起没了，所以阅读页不需要在页内清理；
 // dispose() 留给"同一页里想换一张图"的将来用法。
@@ -98,8 +95,9 @@ function whenLoaded(frame, onDoc, onBlocked, timeoutMs = 10000) {
  * timeoutMs 是等图加载的最长时间（毫秒，默认 10 秒），到点仍没等到就按接不上报。
  * 返回 { dispose() }，调用方不需要时可以不接（切版本整页重载）。
  */
-export function connectChartSelection(frame, { onSelection, onUnavailable, timeoutMs } = {}) {
+export function connectChartSelection(frame, { onSelection, onUnavailable, onOpenDetail, timeoutMs } = {}) {
   let observer = null
+  let removeDoubleClick = () => {}
   let stopWaiting = () => {}
   let cancelled = false
   let reported = false
@@ -134,6 +132,19 @@ export function connectChartSelection(frame, { onSelection, onUnavailable, timeo
       return
     }
     const sync = () => publish(readSelection(svg))
+    // 双击适配集中于此；不修改上游，不拦截单击、拖动或空白区事件。
+    const open = (event) => {
+      if (cancelled || event.button !== 0) return
+      const node = event.target.closest?.('[data-node-id]')
+      if (!node || !svg.contains(node)) return
+      const id = node.getAttribute('data-node-id')
+      if (!id) return
+      onOpenDetail?.({ id, label: node.getAttribute('data-node-label') || id }, node)
+    }
+    if (onOpenDetail) {
+      svg.addEventListener('dblclick', open)
+      removeDoubleClick = () => svg.removeEventListener('dblclick', open)
+    }
     observer = new MutationObserver(sync)
     // 只看这一个标记：图内其它变化（缩放、悬停、播放）与选中无关，不惊动外层
     observer.observe(svg, { subtree: true, attributes: true, attributeFilter: [MARKER] })
@@ -147,6 +158,7 @@ export function connectChartSelection(frame, { onSelection, onUnavailable, timeo
       cancelled = true
       observer?.disconnect()
       observer = null
+      removeDoubleClick()
       stopWaiting()
     },
   }

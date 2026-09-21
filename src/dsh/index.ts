@@ -582,6 +582,9 @@ async function handle(
     if (await serveFile(res, ctx.webRoot, 'business.html')) return
   } else if (segments.length === 3 && segments[1] === 'business' && ID_PATTERN.test(segments[2])) {
     if (await serveFile(res, ctx.webRoot, 'business.html')) return
+  } else if (segments.length === 2 && segments[1] === 'showcase') {
+    // 项目级业务展示页：列表／星图／球阵三格式，页面自己读 inventory 装配。
+    if (await serveFile(res, ctx.webRoot, 'showcase.html')) return
   } else if (segments.length >= 3 && segments[1] === 'read') {
     if (await serveFile(res, ctx.webRoot, 'read.html')) return
   }

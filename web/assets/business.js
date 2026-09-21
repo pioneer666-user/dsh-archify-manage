@@ -1,5 +1,30 @@
 // 业务页：业务介绍、文档入口、图列表（每图带快照数与当前状态）。
-import { $, el, fetchJson, pageTitle, renderEmptyWorkspaceParam, renderGuide, renderRepoLine, renderRepoState, setStatus, showError, statusBadge, workspaceParamEmpty, wsUrl } from './common.js'
+import { $, chartStatusKind, countChartStatuses, el, fetchJson, pageTitle, renderEmptyWorkspaceParam, renderGuide, renderRepoLine, renderRepoState, setStatus, showError, STATUS_SUMMARY_ORDER, statusBadge, workspaceParamEmpty, wsUrl } from './common.js'
+
+/** 图列表上方的状态汇总行：点某个状态跳到第一张该状态的图卡并闪一下框，
+ *  图多时不用逐张扫徽标找"要处理的"。 */
+function renderChartSummary(charts, root) {
+  const box = $('chartSummary')
+  if (!box) return
+  const counts = countChartStatuses(charts)
+  const present = STATUS_SUMMARY_ORDER.filter(([kind]) => counts[kind])
+  if (present.length === 0) return
+  for (const [kind, label] of present) {
+    const chip = el('button', 'badge')
+    chip.type = 'button'
+    chip.dataset.kind = kind
+    chip.textContent = `${label} ${counts[kind]}`
+    chip.addEventListener('click', () => {
+      const target = root.querySelector(`.card[data-status="${kind}"]`)
+      if (!target) return
+      target.scrollIntoView({ block: 'center' })
+      target.classList.add('flash')
+      setTimeout(() => target.classList.remove('flash'), 1200)
+    })
+    box.append(chip)
+  }
+  box.hidden = false
+}
 
 function businessIdFromLocation() {
   const parts = location.pathname.split('/').filter(Boolean) // ['archify-manage','business','<id>']
@@ -52,6 +77,7 @@ async function main() {
   for (const chart of business.charts) {
     const card = el('a', 'card')
     card.href = wsUrl(`/archify-manage/read/${id}/${chart.id}`)
+    card.dataset.status = chartStatusKind(chart)
     const h = el('h2')
     h.textContent = chart.name
     h.insertAdjacentHTML('beforeend', statusBadge(chart.currentStatus, chart.compareError))
@@ -85,6 +111,7 @@ async function main() {
     card.appendChild(meta)
     root.appendChild(card)
   }
+  renderChartSummary(business.charts, root)
   setStatus(`${business.name}：${business.charts.length} 张图`, 'ok')
 }
 

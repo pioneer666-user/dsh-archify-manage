@@ -11,7 +11,7 @@
 //   超限死路收尾：读不开（超上限）的文件降级为该版本自己的说明——失败卡分"缺失/读不开"，
 //   说明与证据面板如实报"读不开"，页面与版本条始终活着，历史照样能切）。
 // E·选中同步：图里被原生选中的步骤，在外层状态条上显示"已选：<图上名字>"；
-//   只读观察图里的原生选中标记（chart-link.js），不给图加任何事件、不改 vendor；
+//   chart-link.js 观察原生选中标记，并适配节点双击；不改 vendor；
 //   接不上有尽头——load 后仍进不去、或一直等不到 load，都明确说一句，不无限等（复审修复）。
 // F·节点详情阅读：状态条上「查看详情」弹出可关闭的详情层，读该节点在当前所选版本里的那一节
 //   说明（与说明面板同一个文件、同一个版本，不发新请求）；没写/没文档/读不开/未分节各如实说；
@@ -25,10 +25,11 @@
 //   ① 页面正展示内容的摘要只由"加载并展示内容"写定，刷新版本条不覆盖它；
 //   ② 保存请求的成功只认"状态成功 + 正文完整"，并区分"版本已写上、只是没核完"。
 import { $, el, fetchJson, pageTitle, postJson, renderEmptyWorkspaceParam, renderGuide, renderRepoLine, renderRepoState, setStatus, showError, workspaceParamEmpty, wsUrl } from './common.js'
-import { buildDetails, findSection, parseBody, splitInline } from './details.js'
+import { buildDetails, parseBody, splitInline } from './details.js'
 import { describeSource, displayError, evidenceSummary, formatCodeBlock } from './evidence.js'
 import { stripExternalFonts } from './template.js'
 import { connectChartSelection } from './chart-link.js'
+import { loadDetailEvidence, renderNodeDetail } from './node-detail.js'
 // 保存弹层的两条状态规则（自查放行与否、请求结果怎么算）；摘要在那个模块里保管，见文件头注释
 import { rememberShown, shownFingerprint, saveGate, saveOutcome } from './save-result.js'
 // process 垫片必须先于编译器求值（Archify 模块顶层读 process.env；浏览器里没有 process）。
@@ -132,77 +133,6 @@ function renderLinkFailure(reason) {
   $('detailOpen').hidden = true
   bar.dataset.kind = 'warn'
   bar.hidden = false
-}
-
-/**
- * 详情弹层（F·节点详情阅读）：标题＝图上的名字（副标签、节点编号一并给出，与说明面板同一套排法），
- * 正文＝这个节点在当前所选版本里的那一节；没有这一节的四种情形按同一版本的情况如实说明，
- * 不编造正文。正文与说明面板同源：都来自本次已加载的那份 details.md，点开时不再发请求。
- */
-function renderDetailDialog(version, details, selection) {
-  const host = $('detailContent')
-  const source = $('detailSource')
-  host.textContent = ''
-  source.textContent = ''
-  const found = findSection(details, selection.id, { unreadable: version.detailsError || '' })
-
-  if (found.kind === 'section') {
-    host.appendChild(detailBlock(found.block))
-    // 同一编号在文档里写了多节：如实说这里显示的是第一份，不默默挑一份
-    if (found.repeats > 1) {
-      const warn = el('p', 'detail-miss')
-      warn.textContent = `注意：这个编号在说明文档里写了 ${found.repeats} 节，这里显示的是第一份，建议核对 details.md。`
-      host.appendChild(warn)
-    }
-    source.textContent = '与所选版本同源：这一节取自这个版本自己的说明文档（details.md），点开时没有重新取文件。'
-    return
-  }
-
-  if (found.kind === 'empty') {
-    const note = el('p', 'detail-miss')
-    note.textContent = version.kind === 'snapshot'
-      ? '这个版本没有说明文档（details.md）。'
-      : '这张图还没有说明文档（details.md）。'
-    host.appendChild(note)
-    const how = el('p', 'detail-miss')
-    how.textContent = '图能照常看；要给步骤写说明，在业务目录的 details.md 里按「## 节点编号」开一节即可。'
-    host.appendChild(how)
-    return
-  }
-
-  if (found.kind === 'unreadable') {
-    const warn = el('p', 'detail-miss')
-    warn.textContent = `说明文档读不开：${found.reason}`
-    host.appendChild(warn)
-    return
-  }
-
-  if (found.kind === 'malformed') {
-    const warn = el('p', 'detail-miss')
-    warn.textContent = '说明文档没有按约定分节（每节应以「## 节点编号」开头），所以这里只能看到总说明。'
-    host.appendChild(warn)
-    if (details.title) {
-      const lead = el('p', 'detail-lead-line')
-      lead.textContent = details.title
-      host.appendChild(lead)
-    }
-    return
-  }
-
-  const heading = el('h3')
-  heading.textContent = selection.label
-  if (selection.label !== selection.id) {
-    const id = el('code', 'detail-id')
-    id.textContent = selection.id
-    heading.appendChild(id)
-  }
-  host.appendChild(heading)
-  const note = el('p', 'detail-miss')
-  note.textContent = '这个步骤还没写说明。'
-  host.appendChild(note)
-  const how = el('p', 'detail-miss')
-  how.textContent = `在说明文档里按「## ${selection.id}」开一节写上它的说明，这里就能读到（图上的名字会自动带上）。`
-  host.appendChild(how)
 }
 
 /**
@@ -403,79 +333,27 @@ function renderDetailsPanel(version, doc) {
  * 第一次拿到的清单是 null（没有证据文件）或带读不开标注时，就地如实说明，根本不发请求；
  * 证据为空是如实说明，不算错误；接口失败也只影响本面板，不拖垮整页。
  */
-async function renderEvidencePanel(version) {
+async function renderEvidencePanel(version, onReady) {
+  const state = await loadDetailEvidence(version, text => postJson(wsUrl('/archify-manage/api/evidence'), text))
   const host = $('evidencePanel')
-  host.textContent = ''
+  host.replaceChildren()
   const heading = el('h2')
-  heading.textContent = '源码证据'
-  host.appendChild(heading)
-
-  // 文件在但读不开（如超过大小上限）：如实说明，不误报"没有"，也不发请求
-  if (version.evidenceError) {
-    const warn = el('p', 'ev-warn')
-    warn.textContent = `证据文件读不开：${version.evidenceError}`
-    host.append(warn)
-    host.hidden = false
-    return
+  heading.textContent = '全部源码证据'
+  host.append(heading)
+  if (state.message || !state.refs.length) {
+    const note = el('p', 'ev-warn')
+    note.textContent = state.message || '证据清单为空。'
+    host.append(note)
   }
-
-  // 第一次响应里就没有证据文件：如实说明，不再发请求（也就没有第二次读取可错配）
-  if (version.files.evidence === null) {
-    const note = el('p', 'muted')
-    note.textContent = version.kind === 'snapshot'
-      ? '这个版本没有证据文件（evidence.json）。'
-      : '这张图还没有证据文件（evidence.json）。'
-    host.appendChild(note)
-    host.hidden = false
-    return
-  }
-
-  let data
-  try {
-    data = await postJson(wsUrl('/archify-manage/api/evidence'), version.files.evidence)
-  } catch (error) {
-    const warn = el('p', 'ev-warn')
-    warn.textContent = `证据读取失败：${error.message}`
-    host.append(warn)
-    host.hidden = false
-    return
-  }
-
-  if (data.missing) {
-    const note = el('p', 'muted')
-    note.textContent = version.kind === 'snapshot'
-      ? '这个版本没有证据文件（evidence.json）。'
-      : '这张图还没有证据文件（evidence.json）。'
-    host.appendChild(note)
-    host.hidden = false
-    return
-  }
-  if (data.parseError) {
-    const warn = el('p', 'ev-warn')
-    warn.textContent = `证据文件有问题，读不开：${data.parseError}`
-    host.appendChild(warn)
-    host.hidden = false
-    return
-  }
-  if (!data.refs.length) {
-    const note = el('p', 'muted')
-    note.textContent = '证据文件是空的，还没有补充证据。'
-    host.appendChild(note)
-    host.hidden = false
-    return
-  }
-
-  const summary = evidenceSummary(data.refs)
+  const summary = evidenceSummary(state.refs)
   if (summary) {
-    const lead = el('p', 'ev-summary')
-    lead.textContent = `${summary.total} 条证据：${summary.ok} 条有效、${summary.bad} 条有问题。`
-    host.appendChild(lead)
+    const note = el('p', 'muted')
+    note.textContent = summary.total + ' 条证据：' + summary.ok + ' 条有效、' + summary.bad + ' 条有问题。'
+    host.append(note)
   }
-  const rule = el('p', 'muted')
-  rule.textContent = '清单与所选版本同源；代码片段永远取自各条引用写定的那次提交，后来代码改了也不跟着变。'
-  host.appendChild(rule)
-  for (const ref of data.refs) host.appendChild(evidenceBlock(ref))
+  for (const ref of state.refs) host.append(evidenceBlock(ref))
   host.hidden = false
+  onReady(state)
 }
 
 /** 一条证据一块：名称 + （有效）出处与代码片段 /（有问题）人话原因。 */
@@ -559,20 +437,33 @@ async function main() {
   rememberShown(data)
   // 说明文档只解析一次：说明面板与详情弹层用同一份结果，两处说法必然一致
   const details = buildDetails(data.version.files.details, chartNodes(data.version.files.workflow))
-  // 图渲染成功后才接上小房间里的图（E）：接的是这次装配出来的那一帧，失败时没有帧可接；
-  // 接上之后外层只是"看着"图里的原生选中标记，点节点、键盘选、取消选中都不经过外层。
+  let evidence = { loading: true, refs: [] }
+  let openedSelection = null
+  let returnFocus = null
+  const openDetail = (selection, target) => {
+    if (!selection) return
+    openedSelection = selection
+    returnFocus = target || $('detailOpen')
+    renderNodeDetail($('detailContent'), data.version, details, selection, evidence)
+    $('detailSource').textContent = '关闭后继续看图 · Esc 关闭'
+    if (!$('detailDialog').open) $('detailDialog').showModal()
+    $('detailContent').scrollTop = 0
+  }
   if (rendered) {
     connectChartSelection(rendered.frame, {
       onSelection: renderSelectionBar,
       onUnavailable: renderLinkFailure,
+      onOpenDetail: openDetail,
     })
   }
-  // 「查看详情」（F）：读的是本次已加载版本的那一节说明，点开只是把已有内容装进弹层，不发请求
-  $('detailOpen').addEventListener('click', () => {
-    if (!currentSelection) return
-    renderDetailDialog(data.version, details, currentSelection)
-    $('detailDialog').showModal()
+  $('detailOpen').addEventListener('click', () => openDetail(currentSelection))
+  $('detailDialog').addEventListener('close', () => {
+    openedSelection = null
+    returnFocus?.focus({ preventScroll: true })
   })
+  $('materialsOpen').disabled = false
+  $('materialsOpen').addEventListener('click', () => $('materialsDialog').showModal())
+  $('materialsClose').addEventListener('click', () => $('materialsDialog').close())
   $('detailClose').addEventListener('click', () => $('detailDialog').close())
   // 点框外空白关闭：点到的就是 dialog 自己（内容在里面的正文区），且坐标落在框外。
   // ESC 由原生 dialog 自己关（浏览器默认行为），不另写一套。
@@ -597,7 +488,15 @@ async function main() {
   renderDetailsPanel(data.version, details)
   // 证据解析不阻塞版本条：先发出去（正文带的就是本页 data 里那份清单原文），版本条立起来、
   // 状态栏报完再等它——证据慢只慢证据面板
-  const evidenceTask = renderEvidencePanel(data.version)
+  const evidenceTask = renderEvidencePanel(data.version, state => {
+    evidence = state
+    // 晚到的证据只更新仍打开的节点，不重新打开已关闭的详情。
+    if ($('detailDialog').open && openedSelection) {
+      const scroll = $('detailContent').scrollTop
+      renderNodeDetail($('detailContent'), data.version, details, openedSelection, evidence)
+      $('detailContent').scrollTop = scroll
+    }
+  })
   // 版本条与状态栏的绘制抽成函数：保存成功后原地重画它们（不整页刷新、不动图）
   renderVersions(data)
   renderStatus(data)

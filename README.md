@@ -1,158 +1,236 @@
-# @specdev/dsh-archify-manage · Workflow-diagram manager plugin for DSH
+# SpecDev · Workflow diagrams for DSH
 
 English | [简体中文](README.zh.md)
 
-A plugin for DSH (DeepSeek Harness): browse a directory of Archify-generated business
-workflow diagrams, read historical versions via Git annotated tags, and register the
-currently committed diagram content as a named version ("save version"). The only write
-action is attaching an annotated tag to a commit — **it never touches your business
-project's files, branches, or commits**.
+## Download and install
 
-> This plugin grew out of my exploration of AI-assisted development workflows: the
-> methodology and the tool evolved together in the same research. This repository is the
-> cleaned-up, open-source home of the plugin.
+Prerequisites: DSH (DeepSeek Harness) installed, with `dsh`, `pnpm`, and `git` available in your terminal. Copy this command to download and install **0.1.11** directly from GitHub Releases:
 
-## Features
+```sh
+dsh plugin --profile web add https://github.com/pioneer666-user/dsh-archify-manage/releases/download/v0.1.11/specdev-dsh-archify-manage-0.1.11.tgz
+```
 
-- **Zero-config workspace entry**: works out of the box — no project directory to
-  configure. The 「流程图管理」 button in the DSH sidebar expands the list of your DSH
-  workspaces in place; click one, and that workspace's management page opens in a new
-  tab (your DSH session stays where it is). The link carries `?workspace=<id>`, binding
-  the page to that workspace's `docs/archify/`.
-- **Three pages**: project home (project + business list) → business page (intro, doc
-  entries, diagram list — each diagram shows its snapshot count and a status badge:
-  in sync / modified / no snapshot) → reading page (version bar, live-rendered
-  interactive diagram, sectioned explanation doc, source-code evidence).
-- **Historical versions**: saved versions are Git annotated tags; the reading page
-  switches via the version bar, and the diagram, explanation, and evidence all come
-  from the selected version (code snippets are taken from the commit pinned by each
-  reference).
-- **Node details**: click a node on the diagram to read that step's section of the
-  explanation for the selected version (missing, unreadable, or unsectioned cases are
-  reported honestly — nothing is made up).
-- **Save version (the only write action)**: on the "current (working tree)" view,
-  register the committed diagram content as a named version; uncommitted changes block
-  the save and name the offending file, stale page content requires a refresh first,
-  and saving the same content for the same stage twice never creates duplicates.
-- **Unified authentication via the DSH login**: pages and APIs reuse the DSH login
-  session and origin checks; unauthenticated or untrusted-origin requests are rejected
-  (with a prompt to log in through the DSH start address first), and an unavailable
-  authentication service fails closed.
-- **Bundled skill `archify-maker`**: registered into DSH when the plugin loads, ready
-  to use after installation; provides a four-stage guide (design → implement →
-  evidence → modify) and a workflow-diagram validation command (see
-  `skills/archify-maker/` inside the package).
+Restart DSH, then click **「流程图管理」 (diagram manager) → choose a workspace** in the sidebar. The project opens in a new tab using your DSH login session. No project path to configure.
 
-## Installation
+[Download the 0.1.11 package](https://github.com/pioneer666-user/dsh-archify-manage/releases/download/v0.1.11/specdev-dsh-archify-manage-0.1.11.tgz) · [View Releases](https://github.com/pioneer666-user/dsh-archify-manage/releases)
 
-Prerequisite: DSH (DeepSeek Harness) installed. The plugin has been verified end to
-end (install → use → remove) on DSH 0.1.6-alpha.2, web profile, including the
-workspace entry and unified authentication. On hosts without a workspace registry,
-the page falls back to the manual `repoRoot` mode (see step 4).
+> The command requires the named package asset to be published in the `v0.1.11` Release. Verified host environment: **Windows · DSH 0.1.6-alpha.2 · web profile**.
 
-1. Download `specdev-dsh-archify-manage-<version>.tgz` from the GitHub Release;
-2. Install: `dsh plugin --profile web add <path-to-tgz>` (`--profile` selects the
-   profile to install into and is **required**; **the path must not contain
-   spaces** — a DSH-side limitation; paths with spaces fail with ENOENT, so copy
-   the file to a space-free directory first);
-3. Restart DSH. No configuration needed: click 「流程图管理」 in the sidebar to
-   expand the workspace list, click a workspace, and its management page opens in a
-   new tab, ready to use (it rides on your DSH login session);
-4. (Compatibility: pointing at a project directory manually) If your host has no
-   workspace registry, or you want to pin the plugin to a specific repository, you
-   can still configure `repoRoot` — the plugin points to no repository by default,
-   and when nothing is configured and the link carries no workspace id, the page
-   shows a copyable config sample. Config precedence (later overrides earlier):
-   bundle patch → the profile's own `cordis.patch.yml` → home level → `--patch`
-   overlay. Profile-level example (**override by id — do not use `- insert:`**,
-   which adds a duplicate entry and crashes startup):
-   ```yaml
-   - id: specdev-archify-manage
-     config:
-       repoRoot: 'D:/your/business-project-repo'
-   ```
+<details>
+<summary>Already installed? Upgrade to 0.1.11</summary>
 
-## Expected layout of the business project
+Stop the running DSH instance, run these commands in order, then start DSH again:
 
-The plugin reads the business project through a fixed directory convention:
+```sh
+dsh plugin --profile web remove @specdev/dsh-archify-manage
+dsh plugin --profile web add https://github.com/pioneer666-user/dsh-archify-manage/releases/download/v0.1.11/specdev-dsh-archify-manage-0.1.11.tgz
+```
+
+Removing and reinstalling ensures the old plugin files are replaced. Your diagrams and Git snapshots stay in your project repository.
+
+</details>
+
+## Start with a diagram. Find your way through the project.
+
+When you join a project, you want to understand its business areas, follow a workflow, find out why a step behaves as it does, and locate the implementation behind it.
+
+**SpecDev connects the business directory, interactive diagrams, node explanations, and source evidence in one reading path:**
+
+**Project → Business → Workflow → Node → Source**
+
+It is a DSH plugin, published as `@specdev/dsh-archify-manage`, that uses Archify to render workflow diagrams. Start with the overview, then open a node to read its explanation alongside the implementation. Switch to a saved design or implementation version to revisit the diagram and its evidence at that point.
+
+This plugin grew out of an exploration of AI-assisted development: giving requirements discussions, implementation, and review an accessible reading surface with traceable sources. This repository contains the plugin's open-source code.
+
+## A look inside
+
+These screenshots show a fictional campus services project. The sample deliberately includes invalid data to demonstrate warnings for duplicate diagram IDs, missing material, and other problems. The current interface is in Chinese.
+
+### Project home: see the overview, then choose a business
+
+The project introduction, business count, and diagram count share one overview. Business entries take you further into the project. Management pages support light and dark themes and remember your preference.
+
+![Project home with an overview, counts, and business entries](web/assets/screenshots/project-home.png)
+
+### Business page: descriptions, diagrams, and status together
+
+Each business groups its introduction, document links, and diagrams. Diagram cards show snapshot counts and current status, with problems called out directly.
+
+![Business page with document links, diagram cards, and status indicators](web/assets/screenshots/business.png)
+
+### Diagram reader: follow the flow and switch versions
+
+An interactive workflow diagram and a version bar share the reading page. Read the current working tree or return to a saved design or implementation version.
+
+![Diagram reader with a version bar and an interactive workflow](web/assets/screenshots/workflow.png)
+
+### Node details: source on the left, explanation on the right
+
+**Double-click a node** to open its details, or select it and use **「查看详情」 (view details)** outside the diagram. Source excerpts align with their explanation groups. Close the dialog to continue with the same diagram. **「全部阅读资料」 (all reading material)** keeps the full document and any unpaired references accessible.
+
+![Node details pairing source from a pinned commit with its business explanation](web/assets/screenshots/node-detail.png)
+
+## What else it does
+
+| Capability | How it works |
+|---|---|
+| Multiple workspaces | Choose a workspace from the DSH sidebar; each page stays bound to that project |
+| Business showcase | Open 「业务展示」 from the home page and switch between list, star-map, and sphere views |
+| Historical reading | Use the version bar to read that version's diagram, node explanations, and evidence manifest |
+| Named versions | Register a name, stage, and description for committed diagram content |
+| Bundled AI skill | `archify-maker` provides guidance for design, implementation, evidence review, and later changes; it registers with DSH when the plugin loads |
+
+**The management UI's only write action is saving a version: it adds an annotated Git tag without changing your project's files, branches, or commits.** The bundled skill guides an AI in creating or modifying project files within the scope you authorize.
+
+## Your first project
+
+1. **Choose a project.** Add or select a business repository workspace in DSH. Its directory should be the Git repository root.
+2. **Prepare a diagram.** Projects with `docs/archify/` data are ready to browse. For a project without it, ask the AI in DSH to use the bundled `archify-maker` skill to create diagrams and explanations from your requirements.
+3. **Start reading.** Open 「流程图管理」 → workspace → business → diagram. Double-click a node to read the explanation alongside its source references.
+4. **Keep a version.** Review the content and commit it to Git, then click 「保存版本」 on the diagram's current-working-tree view. You can return to that version from the version bar.
+
+Zero configuration means you do not need to set the plugin's project path manually. The plugin reads existing diagram files; installation does not automatically turn an arbitrary code repository into diagrams.
+
+<details>
+<summary>No diagrams yet? A starting prompt for your AI</summary>
+
+In a DSH conversation for the target project, describe the business you want to work on. For example:
+
+> Use archify-maker to create the business specification, workflow diagram, and node explanations for this project's event registration flow, and register them under docs/archify. Confirm the business rules with me first. Mark unimplemented behavior as design, and leave source evidence empty until verified.
+
+The skill separates design, implementation facts, and unverified information. You still review and accept the resulting diagrams. See [archify-maker](skills/archify-maker/SKILL.md) for the guide.
+
+To explore a fictional sample instead, clone this repository and run the following from its root. Node.js and Git are required, and the destination must not already exist:
+
+```sh
+node sample/generate.mjs ./local-artifacts/demo-project
+```
+
+Open the generated `local-artifacts/demo-project` as a DSH workspace. It includes both valid and invalid examples; see the [sample project](sample/README.md).
+
+</details>
+
+## Usage reference
+
+<details>
+<summary>Where do diagrams and explanations live?</summary>
+
+All reading data lives in your business repository:
 
 ```text
 docs/archify/
-  project.json                        # project (schema: specdev-archify/project/1)
-  <business-id>/business.json         # business (id / name / intro / docs)
-  <business-id>/<chart-id>/chart.json     # chart (id / name / summary; chart numbers are project-wide unique)
-  <business-id>/<chart-id>/workflow.json  # chart source (Archify workflow JSON)
-  <business-id>/<chart-id>/details.md     # node details
-  <business-id>/<chart-id>/evidence.json  # source-code evidence references
+  project.json                           # project name and introduction
+  <business-id>/business.json             # business introduction and document links
+  <business-id>/<chart-id>/chart.json     # diagram name and summary
+  <business-id>/<chart-id>/workflow.json  # Archify workflow source
+  <business-id>/<chart-id>/details.md     # explanations grouped by node
+  <business-id>/<chart-id>/evidence.json  # source references pinned to commits
 ```
 
-In workspace mode, the workspace directory must be the **top level** of a Git
-repository (subdirectories are rejected with an explanation instead of silently
-binding to the parent repository); the manual `repoRoot` mode keeps the older,
-unrestricted behavior.
+Business IDs and diagram IDs match their directory names. Diagram IDs must be unique across the entire project. You can read diagrams without node explanations or source evidence; missing or invalid material is reported explicitly.
 
-A saved version = annotated tag `archify/<chart-number>/<version-id>`. On read, five
-checks are applied (is an annotated tag, peels to a commit, tag message is valid JSON
-with required fields, chart number matches the tag name, directory starts with the
-convention root); non-conforming tags are counted as "invalid" and ignored, not
-treated as snapshots.
+See the [file contract](skills/archify-maker/references/project-contract.md) for fields and examples.
 
-## Pages and API
+</details>
 
-Pages and APIs are same-origin and require an active DSH login (unauthenticated
-access is rejected with a prompt to log in through the DSH start address first).
-Links opened from the workspace list carry `?workspace=<id>` automatically; without
-one, the manually configured `repoRoot` is used.
+<details>
+<summary>How are explanations paired with source code?</summary>
 
-| Path | Content |
-|---|---|
-| `/archify-manage/` | Project home: project name + business list |
-| `/archify-manage/business/<business-id>` | Business page: intro, doc entries, diagram list (snapshot counts and status badges; numbering conflicts and doc problems are called out) |
-| `/archify-manage/read/<business-id>/<chart-id>?v=current\|<tag-name>` | Reading page: version bar + live-rendered interactive diagram + sectioned explanation + source evidence; click a node for details; "current (working tree)" view offers save-version |
+In `details.md`, use a level-two heading for the node ID and explicitly name the evidence reference in the body:
 
-API (same origin): `GET /api/workspaces` lists the DSH workspaces (used by the
-sidebar menu); the rest are read-only `GET /api/inventory`, `/api/chart`, `/api/doc`,
-and `GET /api/evidence` (for scripts); `POST /api/evidence` receives the evidence
-JSON from the page's own payload for slicing, preventing mismatch when files change
-between requests; `/api/snapshots` is **the only write operation** — `GET` is the
-pre-save check (current commit, whether saving is allowed, per-file issues, content
-digest), `POST` saves a version (`head`/`fingerprint` pin the commit and content you
-confirmed; new commits or mismatched content in between are rejected with a refresh
-request).
+```markdown
+## check_eligibility
+### Check registration eligibility
+[Implemented] Unverified accounts and duplicate registrations are rejected.（证据 eligibility-core）
+```
 
-## Building from source
+Keep the literal `证据` marker shown above; it is the reference syntax the reader recognizes. `eligibility-core` must exactly match a `refs[].id` in the same version's `evidence.json`. Each source reference records a repository-relative file path, a full 40-character commit hash, and a line range. The reader fetches code from that pinned commit.
 
-Node ≥ 22. In this directory:
+- Level-three headings define groups; without them, paragraphs define the groups. The explanation controls the order.
+- A group can name multiple evidence IDs, separated by `、`. Examples inside code fences are not used for pairing.
+- Paragraphs without explicit references are not assigned guessed code. Missing, duplicate, or invalid references show an explanation.
+- The detail reader is not a full Markdown renderer; it supports common headings, paragraphs, lists, emphasis, and code display.
+
+The dialog displays **declared relationships**. Having a source reference does not by itself prove that a business rule is correct.
+
+</details>
+
+<details>
+<summary>What does saving a version preserve?</summary>
+
+Saving creates an annotated Git tag named `archify/<chart-id>/<version-id>`. Versioned reading covers `workflow.json`, `details.md`, and `evidence.json`. Source excerpts always come from the commit pinned by each evidence reference.
+
+Before saving, the plugin checks that these three diagram files match the current commit. Uncommitted diagram changes, stale page content, or a changed commit block the save with an explanation. Saving the same content at the same stage returns the existing version.
+
+Diagram names and summaries, business introductions, document links, and business-document content still come from the current working tree. To inspect historical business documents, use Git at the snapshot's actual commit.
+
+Invalid snapshot tags are counted and ignored. Deleting or renaming versions, cross-repository evidence, and pushing to a remote are not currently supported.
+
+</details>
+
+<details>
+<summary>Cannot open a page, or need to set the repository manually?</summary>
+
+Log in through the address DSH prints at startup, then use its sidebar entry. Pages and APIs share DSH's login session and origin checks. Requests are rejected when authentication is unavailable.
+
+Workspace mode requires a Git repository root. Subdirectories, invalid workspace IDs, and an unavailable workspace service produce explicit errors.
+
+If the host has no workspace registry, or you need to pin the plugin to one repository, override the entry by ID in the web profile's `cordis.patch.yml`:
+
+```yaml
+- id: specdev-archify-manage
+  config:
+    repoRoot: 'D:/your/business-project-repo'
+```
+
+Do not use `- insert:`, which creates a duplicate entry. Restart DSH and open `/archify-manage/` on the same DSH address without a `workspace` parameter. When the workspace list is unavailable or empty, the sidebar also offers a direct link. Configuration precedence is bundle → profile → home → `--patch` overlay, with later layers overriding earlier ones.
+
+If you install a manually downloaded `.tgz`, its local path must not contain spaces due to a DSH limitation. The Release URL command above avoids handling a local package path.
+
+</details>
+
+## Developer reference
+
+<details>
+<summary>Build from source</summary>
+
+Requires Node.js ≥ 22. Run from the plugin repository root:
 
 ```sh
-npm install                    # install dev dependencies (esbuild / typescript)
-npm run typecheck              # type check (tsc --noEmit)
-npm run build                  # build dist/ (esbuild bundle)
-npm pack --pack-destination .  # produce specdev-dsh-archify-manage-<version>.tgz
+npm install
+npm run typecheck
+npm run build
+npm pack --pack-destination .
 ```
 
-(Optional) behavioral smoke test and interface-level acceptance: `node scripts/smoke.mjs`,
-`node scripts/check-save.mjs` — self-contained, they generate a temporary sample
-repository and never touch your business project.
+This produces `specdev-dsh-archify-manage-0.1.11.tgz`. The renderer and validation tools are included in the source tree; a separate Archify checkout is not needed.
 
-## Boundaries (honest)
+For behavioral checks, run `node scripts/smoke.mjs` and `node scripts/check-save.mjs` sequentially as needed. They create temporary sample repositories and do not operate on your business project.
 
-- The only write action is saving a version (attaching an annotated tag); **deleting
-  versions, renaming, cross-repository use, and pushing are out of scope**.
-- Verified environment: DSH 0.1.6-alpha.2 (web profile; workspace entry and unified
-  authentication verified end to end), Windows, a single machine. The manual
-  `repoRoot` mode is covered by the bundled interface-level script
-  `scripts/check-save.mjs`, which spins up its own fake host and is host-agnostic.
-  No end-to-end acceptance with a real AI session (skill trigger → read references →
-  produce) has been done, nor verification on another machine.
-- Node-level enhanced reading is at step 1 (selection sync + node-detail reading);
-  node cross-references, node-detail evidence filtering, and asking DSH from the page
-  are future work.
-- Rendering and validation rely on the bundled Archify renderer copy (MIT), see
-  `vendor/archify-renderer/`; upgrading the copy is a maintainer action.
+</details>
 
-## License
+<details>
+<summary>Pages and API</summary>
 
-MIT (see `LICENSE` at the repository root). The bundled Archify renderer copy is also
-MIT; its license and third-party notices travel with the copy in
-`vendor/archify-renderer/archify/` (`LICENSE`, `THIRD_PARTY_NOTICES.md`).
+All paths below are prefixed with `/archify-manage`. Workspace links automatically carry `?workspace=<id>`. Both pages and APIs require an authenticated DSH session.
+
+| Path | Purpose |
+|---|---|
+| `/` | Project home |
+| `/showcase` | Project-level business showcase: list, star map, and sphere |
+| `/business/<business-id>` | Business introduction, documents, and diagrams |
+| `/read/<business-id>/<chart-id>` | Diagram and node details; `v=current` or a tag name selects the version |
+| `GET /api/workspaces` | DSH workspace list |
+| `GET /api/inventory`, `/api/chart`, `/api/doc` | Directory, diagram, and business document data |
+| `GET /api/evidence` | Source excerpts for script callers |
+| `POST /api/evidence` | Read source using the page's already-loaded manifest to keep evidence aligned with the diagram; does not write to the repository |
+| `GET /api/snapshots` | Pre-save checks |
+| `POST /api/snapshots` | Save a version, checking the commit and content with `head` and `fingerprint` |
+
+</details>
+
+Verification has covered Windows on one machine with DSH 0.1.6-alpha.2's web profile. Other machines, other host versions, and a complete real DSH AI session from skill invocation through artifact generation have not yet been verified end to end.
+
+## License and acknowledgments
+
+This project uses the [MIT license](LICENSE). Thanks to DSH for the plugin host and Archify for workflow rendering and validation. The bundled Archify copy is also MIT; its [license](vendor/archify-renderer/archify/LICENSE) and [third-party notices](vendor/archify-renderer/archify/THIRD_PARTY_NOTICES.md) remain included.

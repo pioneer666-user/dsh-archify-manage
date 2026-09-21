@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>图阅读 · 流程图管理</title>
+<script src="/archify-manage/assets/theme.js"></script>
 <link rel="stylesheet" href="/archify-manage/assets/style.css">
 <!-- 把渲染器用到的 node: 内置模块映射到随包替身（vendor/archify-renderer/stubs/）。
      编译路径不该真调用它们；一旦被调用，替身抛错暴露。 -->
@@ -23,14 +24,20 @@
 }
 </script>
 </head>
-<body>
+<body class="read-page">
+<header class="app-bar">
+  <a class="brand" data-home-link href="/archify-manage/" aria-label="SpecDev 项目首页"><span class="brand-mark" aria-hidden="true">S<span></span></span><span>SpecDev<span class="brand-caption">流程图工作台</span></span></a>
+  <div class="theme-switch" role="group" aria-label="页面主题"><button type="button" data-theme-choice="light" aria-pressed="false"><span aria-hidden="true">☼</span> 浅色</button><button type="button" data-theme-choice="dark" aria-pressed="true"><span aria-hidden="true">☾</span> 深色</button></div>
+</header>
+<div class="page-content">
 <header class="top">
   <div>
     <p class="crumbs"><a href="/archify-manage/">项目首页</a> / <a id="bizLink" href="/archify-manage/">业务</a> / <span id="chartName">…</span></p>
     <h1 id="title">图阅读</h1>
     <p class="sub" id="summary"></p>
-    <!-- 第二期第 2 步：工作区模式显示"工作区：名称（路径）"，手动配置模式注明（由 read.js 填充） -->
-    <p class="sub" id="repoLine"></p>
+    <!-- 第二期第 2 步：工作区模式显示"工作区：名称（路径）"，手动配置模式注明（由 read.js 填充）。
+         长路径不再直接铺开行内断词，与首页一样折进可展开块（common.js renderRepoLine 填充）。 -->
+    <details class="workspace-details" id="workspaceDetails" hidden><summary id="workspaceLabel">工作区</summary><p id="repoLine"></p></details>
   </div>
   <p id="status" class="status" data-kind="info">正在读取图…</p>
 </header>
@@ -45,22 +52,24 @@
   <span id="selectionText"></span>
   <button id="detailOpen" class="detail-open" type="button" hidden>查看详情</button>
 </p>
+<div class="reader-tools"><span class="muted">双击节点查看详情，也可选中后点击“查看详情”</span><button id="materialsOpen" type="button" disabled>全部阅读资料</button></div>
 <!-- 现场渲染挂载点：原生装配出的整页装在 iframe（独立小房间）里，样式自带。 -->
 <main id="stage" class="chart-stage"></main>
-<!-- 说明文档（details.md）分块展示：内容与所选版本同源，由 read.js 填充。 -->
-<section id="detailsPanel" class="details-panel" hidden></section>
-<!-- 源码证据（evidence.json）展示：清单与所选版本同源；代码片段永远取自各条引用写定的
-     那次提交（后来代码改了也不跟着变），由 read.js 另调 /api/evidence 填充。 -->
-<section id="evidencePanel" class="evidence-panel" hidden></section>
+</div>
 <!-- 节点详情弹层（F）：读某个步骤在当前所选版本里的说明正文。
      关闭三方式：右上按钮 / ESC / 点框外空白；弹层不碰图，关闭后图的缩放与位置原样。 -->
-<dialog id="detailDialog" class="detail-dialog">
+<dialog id="detailDialog" class="detail-dialog" aria-label="节点详情与源码对照">
   <div class="detail-dialog-head">
     <span>节点详情</span>
-    <button id="detailClose" class="detail-close" type="button" aria-label="关闭详情">×</button>
+    <button autofocus id="detailClose" class="detail-close" type="button" aria-label="关闭详情">×</button>
   </div>
   <div id="detailContent" class="detail-dialog-body"></div>
   <p id="detailSource" class="detail-source"></p>
+</dialog>
+<!-- 原底部资料移入按需打开的弹层，保留未配对资料与图渲染失败时的阅读入口。 -->
+<dialog id="materialsDialog" class="detail-dialog materials-dialog" aria-label="全部阅读资料">
+  <div class="detail-dialog-head"><span>全部阅读资料 · 当前所选版本</span><button autofocus id="materialsClose" class="detail-close" type="button" aria-label="关闭阅读资料">×</button></div>
+  <div class="detail-dialog-body"><section id="detailsPanel" class="details-panel"></section><section id="evidencePanel" class="evidence-panel"><p>正在读取源码证据…</p></section></div>
 </dialog>
 <script type="module" src="/archify-manage/assets/read.js"></script>
 <!-- 保存版本弹层（G）：给"当前（工作区）"这一份内容登记一个带名称/阶段/说明的版本。
